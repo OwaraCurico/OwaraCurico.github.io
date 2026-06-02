@@ -744,6 +744,8 @@ let pieces = [], animFrame = null, bannerTimeout = null;
 function celebrate() {
   canvas.width  = window.innerWidth;
   canvas.height = window.innerHeight;
+  var audio = new Audio('applause.wav');
+  audio.play();
   const colors = ['#c8a84b','#f0d080','#fdf8ef','#9b2335','#2a6b3c','#e8e0cc'];
   pieces = Array.from({length: 120}, () => ({
     x: Math.random() * canvas.width,
