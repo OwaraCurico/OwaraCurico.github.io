@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bingo</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --gold: #c46a92;
+    --gold-light: #ffffff;
+    --gold-dark: #7d3f5d;
+    --ink: #35222c;
+    --cream: #fff8fb;
+    --cream-dark: #f3d7e3;
+    --card-bg: #fffbfd;
+    --marked: #b84d79;
+    --marked-text: #ffffff;
+    --line-bg: #8d63b8;
+    --line-text: #ffffff;
+    --shadow: 0 4px 24px rgba(125,63,93,0.22);
+  }
+
+  body {
+    background: linear-gradient(180deg, #fffefe 0%, #ffeef5 45%, #f8d7e5 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 2.5rem 1rem 3rem;
+    font-family: 'DM Mono', monospace;
+    color: var(--cream);
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  header {
+    text-align: center;
+    margin-bottom: 2rem;
+  }
+
+  .title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(3.5rem, 10vw, 6rem);
+    font-weight: 900;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    text-shadow: 0 0 40px rgba(83,44,91,0.3), 2px 2px 0 var(--gold-dark);
+    line-height: 1;
+    margin-bottom: 0.25rem;
+  }
+
+  .subtitle {
+    font-size: 0.75rem;
+    letter-spacing: 0.3em;
+    color: rgba(53,34,44,0.75);
+    text-transform: uppercase;
+  }
+
+  /* ── Layout: board + caller side-panel ── */
+  .play-area {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+  }
+
+  /* ── Board ── */
+  .board-frame {
+    background: var(--card-bg);
+    border: 3px solid var(--gold-dark);
+    border-radius: 4px;
+    padding: 1.5rem;
+    box-shadow: var(--shadow), inset 0 0 0 1px rgba(200,168,75,0.2);
+    position: relative;
+  }
+
+  .board-frame::before, .board-frame::after {
+    content: '✦';
+    position: absolute;
+    font-size: 1.1rem;
+    color: var(--gold);
+    opacity: 0.6;
+  }
+  .board-frame::before { top: 6px; left: 10px; }
+  .board-frame::after  { bottom: 6px; right: 10px; }
+
+  .col-headers {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+    margin-bottom: 6px;
+    padding: 0 2px;
+  }
+
+  .col-header {
+    text-align: center;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: var(--gold);
+    letter-spacing: 0.05em;
+    line-height: 1;
+    padding: 4px 0;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+  }
+
+  /* ── Cells ── */
+  .cell {
+    width: clamp(70px, 14vw, 100px);
+    height: clamp(70px, 14vw, 100px);
+    background: var(--cream-dark);
+    border: 1.5px solid rgba(200,168,75,0.3);
+    border-radius: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: clamp(0.5rem, 1.4vw, 0.72rem);
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.3;
+    transition: background 0.18s, color 0.18s, transform 0.12s, border-color 0.18s;
+    word-break: break-word;
+    user-select: none;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Hidden state — shows a "?" face */
+  .cell.hidden-word {
+    color: transparent;
+    background: #c98aa6;
+    border-color: rgba(200,168,75,0.15);
+  }
+  .cell.hidden-word::before {
+    content: '?';
+    position: absolute;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: rgba(200,168,75,0.25);
+    pointer-events: none;
+  }
+
+  .cell.hidden-word:hover {
+    background: #d99cb8;
+    border-color: rgba(200,168,75,0.4);
+    transform: scale(1.03);
+  }
+  .cell.hidden-word:hover::before {
+    color: rgba(200,168,75,0.5);
+  }
+
+  /* Revealed but unmarked */
+  .cell.revealed {
+    background: var(--cream-dark);
+    color: var(--ink);
+  }
+  .cell.revealed:hover {
+    border-color: rgba(200,168,75,0.7);
+    transform: scale(1.03);
+    background: #f3d3e1;
+  }
+
+  /* Marked */
+  .cell.marked {
+    background: var(--marked);
+    color: var(--marked-text);
+    border-color: #7a1a28;
+  }
+  .cell.marked::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at center, rgba(255,255,255,0.1) 0%, transparent 70%);
+  }
+
+  /* Winning line */
+  .cell.line-win {
+    background: var(--line-bg);
+    color: var(--line-text);
+    border-color: #1a4a28;
+    animation: pulse-win 0.6s ease;
+  }
+
+  @keyframes pulse-win {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.08); }
+    100% { transform: scale(1); }
+  }
+
+  /* Free square */
+  .cell.free {
+    background: var(--gold-dark);
+    color: var(--cream);
+    cursor: default;
+    font-size: clamp(0.45rem, 1.2vw, 0.62rem);
+    letter-spacing: 0.05em;
+  }
+  .cell.free:hover { transform: none; background: var(--gold-dark); }
+
+  /* ── Highlighted cell from caller ── */
+  .cell.caller-highlight {
+    outline: 2.5px solid var(--gold);
+    outline-offset: -2px;
+    animation: caller-flash 0.5s ease;
+  }
+  @keyframes caller-flash {
+    0%   { outline-color: #fff; }
+    100% { outline-color: var(--gold); }
+  }
+
+  /* ── Caller panel ── */
+  .caller-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 1.25rem 1rem;
+    background: rgba(255,255,255,0.04);
+    border: 1.5px solid rgba(68, 19, 65, 0.2);
+    border-radius: 4px;
+    min-width: 110px;
+  }
+
+  .caller-label {
+    font-size: 0.6rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: rgba(53,34,44,0.72);
+    text-align: center;
+  }
+
+  #btn-call {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 0.7rem 1rem;
+    border: 2px solid var(--gold-dark);
+    border-radius: 3px;
+    cursor: pointer;
+    background: #f3d7e3;
+    color: #4a2738;
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+    width: 100%;
+    text-align: center;
+  }
+  #btn-call:hover  { background: var(--gold-dark); color: var(--cream); }
+  #btn-call:active { transform: scale(0.96); }
+
+  /* Called number display */
+  .called-display {
+    text-align: center;
+    min-height: 4.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1rem;
+  }
+
+  .called-letter {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--gold);
+    line-height: 1;
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.3s, transform 0.3s;
+  }
+
+  .called-number {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.4rem;
+    font-weight: 900;
+    color: var(--ink);
+    line-height: 1;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.3s 0.05s, transform 0.3s 0.05s;
+  }
+
+  .called-letter.visible,
+  .called-number.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .called-position {
+    font-size: 0.58rem;
+    letter-spacing: 0.18em;
+    color: rgba(53,34,44,0.72);
+    margin-top: 0.3rem;
+    min-height: 1em;
+    text-transform: uppercase;
+  }
+
+  /* History of calls */
+  .call-history-label {
+    font-size: 0.58rem;
+    letter-spacing: 0.2em;
+    color: rgba(53,34,44,0.60);
+    text-transform: uppercase;
+    align-self: flex-start;
+    margin-top: 0.25rem;
+  }
+
+  .call-history {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    max-width: 110px;
+    justify-content: center;
+  }
+
+  .history-chip {
+    font-size: 0.58rem;
+    font-weight: 500;
+    padding: 2px 5px;
+    border-radius: 2px;
+    background: rgba(149, 59, 126, 0.12);
+    color: var(--gold);
+    border: 1px solid rgba(119, 42, 83, 0.2);
+    white-space: nowrap;
+  }
+
+  /* ── Bottom controls ── */
+  .controls {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  button {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    padding: 0.6rem 1.5rem;
+    border: 1.5px solid var(--gold-dark);
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    background: transparent;
+    color: #4a2738;
+  }
+
+  button:hover {
+    background: var(--gold-dark);
+    color: var(--cream);
+  }
+
+  .status {
+    margin-top: 1.25rem;
+    text-align: center;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    color: rgba(53,34,44,0.72);
+    min-height: 1.2em;
+  }
+
+  /* ── Confetti ── */
+  #confetti-canvas {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+
+  /* ── Bingo banner ── */
+  #bingo-banner {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.6);
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(4rem, 12vw, 8rem);
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 0 60px rgba(200,168,75,0.6), 3px 3px 0 var(--gold-dark);
+    letter-spacing: 0.15em;
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s, transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  }
+
+  #bingo-banner.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+
+  /* ── Responsive: stack caller below on narrow screens ── */
+  @media (max-width: 640px) {
+    .play-area { flex-direction: column; align-items: center; }
+    .caller-panel { flex-direction: row; flex-wrap: wrap; min-width: unset; width: 100%; justify-content: center; }
+    .call-history { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="confetti-canvas"></canvas>
+<div id="bingo-banner">BINGO!</div>
+
+<header>
+  <div class="title">LEWD BINGO</div>
+  <div class="subtitle">reveal squares - mark your hits - find a target - FUCK IT - lines win</div>
+</header>
+
+<div class="play-area">
+
+  <!-- Board -->
+  <div class="board-frame">
+    <div class="col-headers">
+      <div class="col-header">B</div>
+      <div class="col-header">I</div>
+      <div class="col-header">N</div>
+      <div class="col-header">G</div>
+      <div class="col-header">O</div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <!-- Caller panel -->
+  <div class="caller-panel">
+    <div class="caller-label">Number<br>Caller</div>
+
+    <button id="btn-call">Draw</button>
+
+    <div class="called-display">
+      <div class="called-letter" id="called-letter"></div>
+      <div class="called-number" id="called-number"></div>
+      <div class="called-position" id="called-position"></div>
+    </div>
+
+    <div class="call-history-label">Called</div>
+    <div class="call-history" id="call-history"></div>
+  </div>
+
+</div>
+
+<div class="controls">
+  <button id="btn-reset">Reset board</button>
+  <button id="btn-clear" style="display:none; visibility:hidden">Clear marks</button>
+</div>
+<div class="status" id="status">Click a square to reveal it, then again to mark it.</div>
+
+<script>
+const STORAGE_KEY = 'bingo_state_v2';
+const SIZE = 5;
+const FREE_INDEX = 12;
+
+// ── Edit your words here ──────────────────────────────────────
+const DEFAULT_WORDS = [
+  'black haired', 'taller than you', 'shorter than you', 'crazy looking', 'wears glasses',
+  'scared',  'tattooed',  'chubby',      'freckled',  'muscular build',
+  'bald head',     'colored eyes',      'FREE',            'alien',     'older than you',
+  'sharp teeth','slim build',     'colored hair',     'missing teeth',  'monstrous features',
+  'manly',   'feminine',     'wears a mask',    'weird posture', 'clussy/click',
+];
+// ─────────────────────────────────────────────────────────────
+
+const COL_LETTERS = ['B','I','N','G','O'];
+
+function getLines() {
+  const lines = [];
+  for (let r = 0; r < SIZE; r++) {
+    const row = [];
+    for (let c = 0; c < SIZE; c++) row.push(r * SIZE + c);
+    lines.push(row);
+  }
+  for (let c = 0; c < SIZE; c++) {
+    const col = [];
+    for (let r = 0; r < SIZE; r++) col.push(r * SIZE + c);
+    lines.push(col);
+  }
+  lines.push([0,6,12,18,24]);
+  lines.push([4,8,12,16,20]);
+  return lines;
+}
+const LINES = getLines();
+
+function showCalledDisplay(letter, number, position) {
+  const lEl = document.getElementById('called-letter');
+  const nEl = document.getElementById('called-number');
+  const pEl = document.getElementById('called-position');
+
+  lEl.classList.remove('visible');
+  nEl.classList.remove('visible');
+
+  setTimeout(() => {
+    lEl.textContent = letter;
+    nEl.textContent = number;
+    pEl.textContent = position;
+    lEl.classList.add('visible');
+    nEl.classList.add('visible');
+  }, 80);
+}
+
+// ── State ──────────────────────────────────────────────────────
+let state = defaultState();
+
+function defaultState() {
+  const marked   = Array(25).fill(false);
+  const revealed = Array(25).fill(false);
+  marked[FREE_INDEX]   = true;
+  revealed[FREE_INDEX] = true;
+  return { marked, revealed, wonLines: [], calledNumbers: [] };
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (Array.isArray(s.marked) && s.marked.length === 25) {
+        if (!s.revealed) s.revealed = s.marked.map((m,i) => m || i === FREE_INDEX);
+        if (!s.calledNumbers) s.calledNumbers = [];
+        return s;
+      }
+    }
+  } catch(e) {}
+  return defaultState();
+}
+
+// ── Render ─────────────────────────────────────────────────────
+const grid      = document.getElementById('grid');
+const statusEl  = document.getElementById('status');
+let highlightedIndex = -1;
+
+function render() {
+  grid.innerHTML = '';
+  const winSet = new Set(state.wonLines.flat());
+
+  for (let i = 0; i < 25; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.index = i;
+
+    if (i === FREE_INDEX) {
+      cell.classList.add('free', 'marked');
+      cell.textContent = DEFAULT_WORDS[i];
+    } else if (!state.revealed[i]) {
+      cell.classList.add('hidden-word');
+    } else {
+      cell.textContent = DEFAULT_WORDS[i];
+      if (winSet.has(i)) {
+        cell.classList.add('line-win');
+      } else if (state.marked[i]) {
+        cell.classList.add('marked');
+      } else {
+        cell.classList.add('revealed');
+      }
+    }
+
+    if (i === highlightedIndex && state.revealed[i]) {
+      cell.classList.add('caller-highlight');
+    }
+
+    cell.addEventListener('click', () => handleCellClick(i));
+    grid.appendChild(cell);
+  }
+
+  renderCallHistory();
+  updateStatus();
+}
+
+function handleCellClick(i) {
+  if (i === FREE_INDEX) return;
+
+  if (!state.revealed[i]) {
+    state.revealed[i] = true;
+    state.marked[i] = true;
+
+    const prev = state.wonLines.length;
+    checkWins();
+    if (state.wonLines.length > prev) celebrate();
+
+    render();
+    return;
+  }
+
+  state.revealed[i] = false;
+  state.marked[i] = false;
+
+  checkWins();
+  render();
+}
+
+function checkWins() {
+  state.wonLines = [];
+  for (const line of LINES) {
+    if (line.every(i => state.marked[i])) state.wonLines.push(line);
+  }
+}
+
+function updateStatus() {
+  const revealed = state.revealed.filter(Boolean).length;
+  const marked   = state.marked.filter(Boolean).length;
+  if (state.wonLines.length > 0) {
+    statusEl.textContent = `${state.wonLines.length} line${state.wonLines.length > 1 ? 's' : ''} complete · ${marked} marked · ${revealed} revealed`;
+  } else {
+    statusEl.textContent = `${revealed} revealed · ${marked} marked`;
+  }
+}
+
+// ── Caller ─────────────────────────────────────────────────────
+function buildDeck() {
+  const deck = [];
+
+  for (let col = 0; col < 5; col++) {
+    for (let row = 1; row <= 5; row++) {
+      deck.push({
+        letter: COL_LETTERS[col],
+        row,
+        col,
+        index: (row - 1) * 5 + col
+      });
+    }
+  }
+
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+
+  return deck;
+}
+
+let deck = [];
+try {
+  const raw = sessionStorage.getItem('bingo_deck_v1');
+  if (raw) deck = JSON.parse(raw);
+} catch(e) {}
+if (!deck.length) {
+  deck = buildDeck();
+  sessionStorage.setItem('bingo_deck_v1', JSON.stringify(deck));
+}
+
+let deckPointer = 0;
+try { deckPointer = parseInt(sessionStorage.getItem('bingo_deck_ptr') || '0'); } catch(e) {}
+
+function drawNumber() {
+  if (deckPointer >= deck.length) {
+    showCalledDisplay('—', '!', 'All 25 positions called');
+    return;
+  }
+
+  const drawn = deck[deckPointer++];
+  sessionStorage.setItem('bingo_deck_ptr', String(deckPointer));
+
+  state.calledNumbers.push(`${drawn.letter}${drawn.row}`);
+
+  highlightedIndex = drawn.index;
+
+  render();
+  showCalledDisplay(
+    drawn.letter,
+    drawn.row,
+    `${drawn.letter}${drawn.row}`
+  );
+}
+
+function positionLabel(drawn) {
+  return `${drawn.letter}${drawn.row}`;
+}
+
+function flashColumn(col) {
+  const cells = grid.querySelectorAll('.cell');
+  cells.forEach(cell => {
+    const i = parseInt(cell.dataset.index);
+    if (i % 5 === col) {
+      cell.style.outline = '2.5px solid rgba(200,168,75,0.7)';
+      cell.style.outlineOffset = '-2px';
+      setTimeout(() => { cell.style.outline = ''; cell.style.outlineOffset = ''; }, 900);
+    }
+  });
+}
+
+function renderCallHistory() {
+  const el = document.getElementById('call-history');
+  el.innerHTML = '';
+
+  const recent = [...state.calledNumbers].reverse().slice(0, 12);
+
+  recent.forEach((call, idx) => {
+    const chip = document.createElement('span');
+    chip.className = 'history-chip';
+    chip.textContent = call;
+
+    el.appendChild(chip);
+  });
+}
+
+document.getElementById('btn-call').addEventListener('click', drawNumber);
+
+// ── Reset / clear ──────────────────────────────────────────────
+document.getElementById('btn-reset').addEventListener('click', () => {
+  state = defaultState();
+  deck = buildDeck();
+  deckPointer = 0;
+  sessionStorage.setItem('bingo_deck_v1', JSON.stringify(deck));
+  sessionStorage.setItem('bingo_deck_ptr', '0');
+
+  document.getElementById('called-letter').classList.remove('visible');
+  document.getElementById('called-number').classList.remove('visible');
+  document.getElementById('called-position').textContent = '';
+
+  render();
+  statusEl.textContent = 'Board reset.';
+});
+
+document.getElementById('btn-clear').addEventListener('click', () => {
+  state.marked   = Array(25).fill(false);
+  state.marked[FREE_INDEX] = true;
+  state.wonLines = [];
+  render();
+  statusEl.textContent = 'Marks cleared.';
+});
+
+// ── Confetti ───────────────────────────────────────────────────
+const canvas = document.getElementById('confetti-canvas');
+const ctx    = canvas.getContext('2d');
+let pieces = [], animFrame = null, bannerTimeout = null;
+
+function celebrate() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const colors = ['#c8a84b','#f0d080','#fdf8ef','#9b2335','#2a6b3c','#e8e0cc'];
+  pieces = Array.from({length: 120}, () => ({
+    x: Math.random() * canvas.width,
+    y: -10 - Math.random() * 200,
+    r: 3 + Math.random() * 5,
+    d: 1.5 + Math.random() * 2.5,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    angle: 0,
+    spin: (Math.random() - 0.5) * 0.12,
+    shape: Math.random() > 0.5 ? 'rect' : 'circle',
+  }));
+  canvas.style.opacity = '1';
+
+  const banner = document.getElementById('bingo-banner');
+  banner.classList.add('show');
+  clearTimeout(bannerTimeout);
+  bannerTimeout = setTimeout(() => banner.classList.remove('show'), 2400);
+
+  if (animFrame) cancelAnimationFrame(animFrame);
+  let tick = 0;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.angle);
+      ctx.fillStyle = p.color;
+      if (p.shape === 'rect') ctx.fillRect(-p.r, -p.r * 0.5, p.r * 2, p.r);
+      else { ctx.beginPath(); ctx.arc(0, 0, p.r, 0, Math.PI * 2); ctx.fill(); }
+      ctx.restore();
+      p.y += p.d;
+      p.x += Math.sin(p.angle) * 1.2;
+      p.angle += p.spin;
+    });
+    tick++;
+    pieces = pieces.filter(p => p.y < canvas.height + 20);
+    if (pieces.length > 0 && tick < 260) animFrame = requestAnimationFrame(draw);
+    else canvas.style.opacity = '0';
+  }
+  draw();
+}
+
+window.addEventListener('resize', () => {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+
+render();
+</script>
+</body>
+</html>
