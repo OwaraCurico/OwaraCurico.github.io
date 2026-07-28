@@ -7,7 +7,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
     <style>
-        /* ── tokens ── */
         :root {
             --black: #08080a;
             --near-black: #111113;
@@ -62,7 +61,6 @@
             }
         }
 
-        /* when result is shown, stop the drift animation and use solid random color */
         body.result-shown .bg-gradient {
             animation: none !important;
             background: var(--random-bg, #08080a) !important;
@@ -111,7 +109,6 @@
             transition: opacity 0.5s ease;
         }
 
-        /* ── hide UI when result is shown ── */
         body.result-shown .wrap header,
         body.result-shown .wrap .panels,
         body.result-shown .wrap .action {
@@ -448,7 +445,7 @@
             letter-spacing: 0.05em;
         }
 
-        /* ── overlay result ── */
+        /* ── overlays ── */
         .overlay {
             position: fixed;
             inset: 0;
@@ -467,13 +464,13 @@
             pointer-events: all;
         }
 
-        .result-title {
+        .overlay .result-title {
             font-family: 'Bebas Neue', sans-serif;
             font-size: clamp(40px, 10vw, 88px);
             letter-spacing: 0.05em;
             text-align: center;
         }
-        .result-sub {
+        .overlay .result-sub {
             font-family: 'IBM Plex Mono', monospace;
             font-size: 13px;
             letter-spacing: 0.2em;
@@ -596,6 +593,68 @@
             margin-top: 26px;
             text-align: center;
         }
+
+        /* ── phone blocker ── */
+        .phone-blocker {
+            position: fixed;
+            inset: 0;
+            background: var(--black);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 60;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+            padding: 32px;
+            text-align: center;
+        }
+        .phone-blocker.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .phone-blocker .icon {
+            font-size: 52px;
+            margin-bottom: 24px;
+            opacity: 0.5;
+        }
+        .phone-blocker h2 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(32px, 8vw, 56px);
+            letter-spacing: 0.04em;
+            margin: 0 0 12px;
+            color: var(--off-white);
+        }
+        .phone-blocker p {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 14px;
+            letter-spacing: 0.1em;
+            color: var(--silver);
+            max-width: 480px;
+            line-height: 1.6;
+            margin: 0;
+        }
+        .phone-blocker .hint {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--steel);
+            margin-top: 28px;
+            letter-spacing: 0.05em;
+        }
+
+        /* ── when phone-blocker is active, hide the game ── */
+        body.phone-blocked .wrap {
+            opacity: 0;
+            pointer-events: none;
+        }
+        body.phone-blocked .bg-gradient {
+            animation: none !important;
+            background: var(--black) !important;
+        }
+        body.phone-blocked .bg-scan {
+            animation: none !important;
+        }
     </style>
 </head>
 <body>
@@ -630,11 +689,20 @@
         </div>
     </div>
 
+    <!-- ── Result overlay ── -->
     <div class="overlay" id="overlay">
         <div class="rings" id="rings"></div>
         <div class="result-title" id="resultTitle"></div>
         <div class="result-sub" id="resultSub"></div>
         <div class="locked-msg">This test accepts one submission per visitor. It will not reopen here.</div>
+    </div>
+
+    <!-- ── Phone blocker overlay ── -->
+    <div class="phone-blocker" id="phoneBlocker">
+        <div class="icon">🖥️</div>
+        <h2>DESKTOP ONLY</h2>
+        <p>This experience is designed for desktop browsers. Please open it on a computer to play.</p>
+        <div class="hint">— OWARA LABS —</div>
     </div>
 
     <audio id="sfxWin" src="applause.wav" preload="auto"></audio>
@@ -643,8 +711,8 @@
     <script>
         (function() {
             const STORAGE_KEY = "matchProtocolResult";
+            const COLOR_KEY = "matchProtocolColor";
 
-            // ── CONFIGURE YOUR IMAGES HERE ──
             const IMAGE_FILES = ["1.png", "2.png", "3.png", "4.png", "5.png", "6.png", "7.png", "8.png"];
             const LEFT_DIR = "Images/Left/";
             const RIGHT_DIR = "Images/Right/";
@@ -677,6 +745,23 @@
                 return IMAGE_FILES[index].replace(/\.[^./\\]+$/, '');
             }
 
+            function isPhone() {
+                // Check screen width and user agent
+                const ua = navigator.userAgent;
+                const mobileUA = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+                const smallScreen = window.innerWidth < 640;
+                // Also check for touch + small screen as a fallback
+                const touchAndSmall = 'ontouchstart' in window && window.innerWidth < 768;
+                return mobileUA || smallScreen || touchAndSmall;
+            }
+
+            function generateRandomColor() {
+                const hue = Math.floor(Math.random() * 160);
+                const saturation = 70 + Math.floor(Math.random() * 20);
+                const lightness = 15 + Math.floor(Math.random() * 15);
+                return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            }
+
             const ids = [0, 1, 2, 3, 4, 5, 6, 7];
             const leftOrder = shuffled(ids);
             let rightOrder = shuffled(ids);
@@ -693,11 +778,12 @@
             const sfxWin = document.getElementById('sfxWin');
             const sfxLose = document.getElementById('sfxLose');
             const bgGradient = document.getElementById('bgGradient');
+            const phoneBlocker = document.getElementById('phoneBlocker');
 
             let selectedTile = null;
             let locked = false;
 
-            // ── build reference rows (2 items per row) ──
+            // ── build reference rows ──
             function buildRefRows() {
                 const fragment = document.createDocumentFragment();
                 const pairs = [];
@@ -714,12 +800,10 @@
                         const item = document.createElement('div');
                         item.className = 'ref-item';
 
-                        // index
                         const idxEl = document.createElement('div');
                         idxEl.className = 'ref-index';
                         idxEl.textContent = String(globalIndex + 1).padStart(2, '0');
 
-                        // visual: glyph-box + caption
                         const visual = document.createElement('div');
                         visual.className = 'ref-visual';
 
@@ -735,13 +819,11 @@
                         visual.appendChild(box);
                         visual.appendChild(cap);
 
-                        // slot
                         const slot = document.createElement('div');
                         slot.className = 'slot';
                         slot.dataset.correct = glyphId;
                         slot.dataset.slotIndex = globalIndex;
 
-                        // ── slot event listeners ──
                         slot.addEventListener('dragover', (e) => {
                             if (locked || slot.classList.contains('filled')) return;
                             e.preventDefault();
@@ -774,7 +856,6 @@
                             placeInSlot(slot, iconId);
                         });
 
-                        // click: if filled → return; else place selected tile
                         slot.addEventListener('click', () => {
                             if (locked) return;
                             if (slot.classList.contains('filled')) {
@@ -785,7 +866,6 @@
                             placeInSlot(slot, selectedTile.dataset.icon);
                         });
 
-                        // drag start (for filled slots)
                         slot.addEventListener('dragstart', (e) => {
                             if (!slot.classList.contains('filled') || locked) return;
                             e.dataTransfer.setData('application/slot-index', slot.dataset.slotIndex);
@@ -839,7 +919,6 @@
                 pool.appendChild(fragment);
             }
 
-            // ── pool drop (return from slot) ──
             pool.addEventListener('dragover', (e) => {
                 if (locked) return;
                 e.preventDefault();
@@ -856,7 +935,6 @@
                 if (slot) returnFromSlot(slot);
             });
 
-            // ── helpers ──
             function clearSelection() {
                 if (selectedTile) {
                     selectedTile.classList.remove('selected');
@@ -897,7 +975,6 @@
                 commitBtn.classList.toggle('enabled', filled === 8);
             }
 
-            // ── eval & result ──
             function evaluate() {
                 const slots = document.querySelectorAll('.slot');
                 let allCorrect = true;
@@ -916,18 +993,16 @@
                 ringsHost.innerHTML = '<div class="ring"></div><div class="ring"></div><div class="ring"></div>';
             }
 
-            function showResult(win) {
-                // ── random background color ──
-                const hue = Math.floor(Math.random() * 160);
-                const saturation = 70 + Math.floor(Math.random() * 20); // 70-90%
-                const lightness = 15 + Math.floor(Math.random() * 15); // 15-30%
-                const randomColor = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-                bgGradient.style.setProperty('--random-bg', randomColor);
-                // also set directly for fallback
-                bgGradient.style.background = randomColor;
-                overlay.style.background = randomColor;
+            function showResult(win, storedColor) {
+                const color = storedColor || generateRandomColor();
 
-                // Hide the panels and UI by adding a class to the body
+                localStorage.setItem(STORAGE_KEY, win ? 'win' : 'lose');
+                localStorage.setItem(COLOR_KEY, color);
+
+                bgGradient.style.setProperty('--random-bg', color);
+                bgGradient.style.background = color;
+                overlay.style.background = color;
+
                 document.body.classList.add('result-shown');
 
                 overlay.classList.add(win ? 'win' : 'lose');
@@ -945,31 +1020,48 @@
                 locked = true;
             }
 
-            commitBtn.addEventListener('click', () => {
-                if (locked || commitBtn.disabled) return;
-                const win = evaluate();
-                localStorage.setItem(STORAGE_KEY, win ? 'win' : 'lose');
-                showResult(win);
-            });
-
-            // ── restore if already played ──
-            const existing = localStorage.getItem(STORAGE_KEY);
-            if (existing === 'win' || existing === 'lose') {
-                locked = true;
-                commitBtn.disabled = true;
-                // Hide UI immediately when restoring
-                document.body.classList.add('result-shown');
-                showResult(existing === 'win');
-                overlay.classList.add('show');
+            function showPhoneBlocker() {
+                document.body.classList.add('phone-blocked');
+                phoneBlocker.classList.add('show');
+                document.body.classList.remove('result-shown');
+                bgGradient.style.animation = 'none';
+                bgGradient.style.background = 'var(--black)';
             }
 
-            // ── init ──
-            buildRefRows();
-            buildPool();
-            updateStatus();
+            function init() {
+                const storedResult = localStorage.getItem(STORAGE_KEY);
+                const storedColor = localStorage.getItem(COLOR_KEY);
 
-            // expose for debugging
-            window.__match = { leftOrder, rightOrder };
+                if (storedResult === 'win' || storedResult === 'lose') {
+                    buildRefRows();
+                    buildPool();
+                    updateStatus();
+                    showResult(storedResult === 'win', storedColor || undefined);
+                    return;
+                }
+
+                if (isPhone()) {
+                    buildRefRows();
+                    buildPool();
+                    updateStatus();
+                    showPhoneBlocker();
+                    return;
+                }
+
+                buildRefRows();
+                buildPool();
+                updateStatus();
+
+                commitBtn.addEventListener('click', () => {
+                    if (locked || commitBtn.disabled) return;
+                    const win = evaluate();
+                    showResult(win);
+                });
+            }
+
+            window.__match = { leftOrder, rightOrder, isPhone: isPhone() };
+
+            init();
 
         })();
     </script>
