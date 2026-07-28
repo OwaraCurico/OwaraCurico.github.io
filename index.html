@@ -38,6 +38,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            transition: background 0.3s;
         }
 
         /* ── ambient bg ── */
@@ -50,6 +51,7 @@
                 radial-gradient(ellipse 70% 50% at 85% 80%, rgba(255, 255, 255, 0.05), transparent 60%),
                 var(--black);
             animation: drift 22s ease-in-out infinite alternate;
+            transition: background 0.8s ease;
         }
         @keyframes drift {
             0% {
@@ -58,6 +60,12 @@
             100% {
                 background-position: 6% 4%, -4% -6%;
             }
+        }
+
+        /* when result is shown, stop the drift animation and use solid random color */
+        body.result-shown .bg-gradient {
+            animation: none !important;
+            background: var(--random-bg, #08080a) !important;
         }
 
         .bg-grain {
@@ -100,11 +108,26 @@
             max-width: 1060px;
             padding: 48px 24px 80px;
             position: relative;
+            transition: opacity 0.5s ease;
+        }
+
+        /* ── hide UI when result is shown ── */
+        body.result-shown .wrap header,
+        body.result-shown .wrap .panels,
+        body.result-shown .wrap .action {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        body.result-shown .wrap {
+            transition: opacity 0.5s ease;
         }
 
         header {
             text-align: center;
             margin-bottom: 40px;
+            transition: opacity 0.5s ease;
         }
         .eyebrow {
             font-family: 'IBM Plex Mono', monospace;
@@ -152,6 +175,7 @@
             grid-template-columns: 1fr 1fr;
             gap: 32px;
             align-items: start;
+            transition: opacity 0.5s ease;
         }
         @media (max-width: 720px) {
             .panels {
@@ -385,6 +409,7 @@
         .action {
             text-align: center;
             margin-top: 40px;
+            transition: opacity 0.5s ease;
         }
         button#commit {
             font-family: 'IBM Plex Mono', monospace;
@@ -575,7 +600,7 @@
 </head>
 <body>
 
-    <div class="bg-gradient"></div>
+    <div class="bg-gradient" id="bgGradient"></div>
     <div class="bg-grain"></div>
     <div class="bg-scan"></div>
 
@@ -601,7 +626,7 @@
 
         <div class="action">
             <button id="commit" disabled>That's it!</button>
-            <div class="note">Drag a sample onto a reference slot to place it, or tap the sample, then tap the slot. Drag or tap a filled slot to return it!</div>
+            <div class="note">Drag a sample onto a reference slot to place it — or tap the sample, then tap the slot. Drag or tap a filled slot to return it.</div>
         </div>
     </div>
 
@@ -609,7 +634,7 @@
         <div class="rings" id="rings"></div>
         <div class="result-title" id="resultTitle"></div>
         <div class="result-sub" id="resultSub"></div>
-        <div class="locked-msg">Only one submission per visitor! It will not reopen here.</div>
+        <div class="locked-msg">This test accepts one submission per visitor. It will not reopen here.</div>
     </div>
 
     <audio id="sfxWin" src="applause.wav" preload="auto"></audio>
@@ -667,6 +692,7 @@
             const ringsHost = document.getElementById('rings');
             const sfxWin = document.getElementById('sfxWin');
             const sfxLose = document.getElementById('sfxLose');
+            const bgGradient = document.getElementById('bgGradient');
 
             let selectedTile = null;
             let locked = false;
@@ -729,7 +755,8 @@
                             const sourceSlotIndex = e.dataTransfer.getData('application/slot-index');
                             const iconId = e.dataTransfer.getData('text/plain');
                             if (sourceSlotIndex !== '') {
-                                const sourceSlot = refList.querySelector(`.slot[data-slot-index="${sourceSlotIndex}"]`);
+                                const sourceSlot = refList.querySelector(
+                                    `.slot[data-slot-index="${sourceSlotIndex}"]`);
                                 if (sourceSlot && sourceSlot !== slot) {
                                     sourceSlot.classList.remove('filled');
                                     sourceSlot.draggable = false;
@@ -890,6 +917,19 @@
             }
 
             function showResult(win) {
+                // ── random background color ──
+                const hue = Math.floor(Math.random() * 160);
+                const saturation = 70 + Math.floor(Math.random() * 20); // 70-90%
+                const lightness = 15 + Math.floor(Math.random() * 15); // 15-30%
+                const randomColor = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+                bgGradient.style.setProperty('--random-bg', randomColor);
+                // also set directly for fallback
+                bgGradient.style.background = randomColor;
+                overlay.style.background = randomColor;
+
+                // Hide the panels and UI by adding a class to the body
+                document.body.classList.add('result-shown');
+
                 overlay.classList.add(win ? 'win' : 'lose');
                 if (win) {
                     spawnRings();
@@ -917,6 +957,8 @@
             if (existing === 'win' || existing === 'lose') {
                 locked = true;
                 commitBtn.disabled = true;
+                // Hide UI immediately when restoring
+                document.body.classList.add('result-shown');
                 showResult(existing === 'win');
                 overlay.classList.add('show');
             }
