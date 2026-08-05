@@ -1,1069 +1,826 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>MATCH GAME</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-    <style>
-        :root {
-            --black: #08080a;
-            --near-black: #111113;
-            --charcoal: #232326;
-            --steel: #5a5a60;
-            --silver: #a8a8ae;
-            --off-white: #f3f3f0;
-            --white: #ffffff;
-            --line: rgba(243, 243, 240, 0.14);
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>High Tea Toppler</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&family=Cormorant+Garamond:wght@500;600&display=swap');
 
-        * {
-            box-sizing: border-box;
-        }
-        html,
-        body {
-            height: 100%;
-        }
+  :root {
+    /* The two colours the drawing room is dressed in, per the brief. */
+    --lime: #bfff5c;
+    --pink: #ff8bd8;
+    /* A deep plum sits between them on the wheel and is darker than both, so
+       the field reads as a distinct room rather than a patch of the wallpaper. */
+    --plum: #2e1b47;
+    --plum-deep: #221336;
+    --plum-panel: #221336d9;
+    --cream: #fff4fa;      /* barely-pink white — legible on plum, never harsh */
+    --alarm: #ff5c8a;      /* the balance bar's warning tint */
+  }
 
-        body {
-            margin: 0;
-            background: var(--black);
-            color: var(--off-white);
-            font-family: 'Inter', sans-serif;
-            min-height: 100vh;
-            overflow-x: hidden;
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            transition: background 0.3s;
-        }
+  * { box-sizing: border-box; }
 
-        /* ── ambient bg ── */
-        .bg-gradient {
-            position: fixed;
-            inset: 0;
-            z-index: -3;
-            background:
-                radial-gradient(ellipse 80% 60% at 20% 15%, rgba(255, 255, 255, 0.07), transparent 60%),
-                radial-gradient(ellipse 70% 50% at 85% 80%, rgba(255, 255, 255, 0.05), transparent 60%),
-                var(--black);
-            animation: drift 22s ease-in-out infinite alternate;
-            transition: background 0.8s ease;
-        }
-        @keyframes drift {
-            0% {
-                background-position: 0% 0%, 0% 0%;
-            }
-            100% {
-                background-position: 6% 4%, -4% -6%;
-            }
-        }
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: linear-gradient(135deg, rgb(191, 255, 92) 0%, rgb(255, 139, 216) 100%);
+    background-attachment: fixed;
+    font-family: 'Cormorant Garamond', serif;
+    overflow: hidden;
+    color: var(--cream);
+  }
 
-        body.result-shown .bg-gradient {
-            animation: none !important;
-            background: var(--random-bg, #08080a) !important;
-        }
+  #stage {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
-        .bg-grain {
-            position: fixed;
-            inset: 0;
-            z-index: -2;
-            opacity: 0.05;
-            mix-blend-mode: overlay;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-        }
+  canvas {
+    display: block;
+    /* The field is wider than it is tall in feel, if not in figures; these
+       caps let it shrink to fit a small window while holding its proportions. */
+    max-width: 96vw;
+    max-height: 92vh;
+    width: auto;
+    height: auto;
+    background: var(--plum);
+    box-shadow: 0 0 0 2px #ffffff55, 0 0 0 3px #2e1b4766, 0 24px 60px #2e1b4759;
+    border-radius: 4px;
+  }
 
-        .bg-scan {
-            position: fixed;
-            left: 0;
-            right: 0;
-            height: 140px;
-            z-index: -1;
-            background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.05), transparent);
-            animation: scan 7s linear infinite;
-            pointer-events: none;
-        }
-        @keyframes scan {
-            0% {
-                top: -140px;
-            }
-            100% {
-                top: 100%;
-            }
-        }
-        @media (prefers-reduced-motion: reduce) {
-            .bg-gradient,
-            .bg-scan {
-                animation: none;
-            }
-        }
+  #hud {
+    position: absolute;
+    top: 22px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 32px;
+    pointer-events: none;
+    font-family: 'Playfair Display', serif;
+  }
 
-        /* ── layout ── */
-        .wrap {
-            width: 100%;
-            max-width: 1060px;
-            padding: 48px 24px 80px;
-            position: relative;
-            transition: opacity 0.5s ease;
-        }
+  .hud-block {
+    background: var(--plum-panel);
+    border: 1px solid var(--lime);
+    border-radius: 3px;
+    padding: 8px 18px;
+    text-align: center;
+    min-width: 120px;
+  }
 
-        body.result-shown .wrap header,
-        body.result-shown .wrap .panels,
-        body.result-shown .wrap .action {
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.5s ease;
-        }
+  .hud-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--lime);
+    font-family: 'Cormorant Garamond', serif;
+  }
 
-        body.result-shown .wrap {
-            transition: opacity 0.5s ease;
-        }
+  .hud-value {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--cream);
+  }
 
-        header {
-            text-align: center;
-            margin-bottom: 40px;
-            transition: opacity 0.5s ease;
-        }
-        .eyebrow {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 12px;
-            letter-spacing: 0.35em;
-            color: var(--silver);
-            text-transform: uppercase;
-        }
-        h1 {
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: clamp(42px, 8vw, 76px);
-            letter-spacing: 0.06em;
-            margin: 6px 0 10px;
-            background: linear-gradient(180deg, var(--white) 0%, var(--silver) 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            line-height: 0.95;
-        }
-        .subtext {
-            font-size: 14px;
-            color: var(--silver);
-            max-width: 480px;
-            margin: 0 auto;
-            line-height: 1.5;
-        }
+  .cups {
+    font-size: 18px;
+    letter-spacing: 4px;
+  }
 
-        .status-line {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 12px;
-            letter-spacing: 0.12em;
-            color: var(--steel);
-            text-align: center;
-            margin-top: 18px;
-            text-transform: uppercase;
-            transition: color 0.3s;
-        }
-        .status-line.ready {
-            color: var(--off-white);
-        }
+  .cup-lost { opacity: 0.25; text-decoration: line-through; }
 
-        /* ── panels ── */
-        .panels {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 32px;
-            align-items: start;
-            transition: opacity 0.5s ease;
-        }
-        @media (max-width: 720px) {
-            .panels {
-                grid-template-columns: 1fr;
-            }
-            .ref-item {
-                grid-template-columns: 20px 1fr 72px !important;
-                gap: 6px !important;
-            }
-            .glyph-box,
-            .slot {
-                height: 72px !important;
-                width: 100% !important;
-                min-width: 52px !important;
-            }
-            .ref-caption {
-                font-size: 9px !important;
-                max-width: 72px !important;
-            }
-            .ref-index {
-                font-size: 9px !important;
-                margin-top: 28px !important;
-            }
-            .pool {
-                grid-template-columns: repeat(2, 1fr) !important;
-            }
-            .tile svg {
-                width: 44% !important;
-            }
-        }
+  #balance-wrap {
+    position: absolute;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(420px, 70vw);
+    text-align: center;
+    font-family: 'Playfair Display', serif;
+  }
 
-        .panel {
-            border: 1px solid var(--line);
-            background: linear-gradient(160deg, var(--near-black), var(--black));
-            padding: 20px 18px;
-            border-radius: 2px;
-        }
-        .panel-title {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 11px;
-            letter-spacing: 0.25em;
-            text-transform: uppercase;
-            color: var(--silver);
-            margin-bottom: 16px;
-            display: flex;
-            justify-content: space-between;
-        }
-        .panel-title span:last-child {
-            color: var(--steel);
-        }
+  #balance-label {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--lime);
+    margin-bottom: 6px;
+    font-family: 'Cormorant Garamond', serif;
+  }
 
-        /* ── reference rows (2‑col) ── */
-        .ref-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            padding: 14px 0;
-            border-bottom: 1px solid var(--line);
-        }
-        .ref-row:last-child {
-            border-bottom: none;
-        }
+  #balance-track {
+    position: relative;
+    height: 10px;
+    border-radius: 5px;
+    background: #22133699;
+    border: 1px solid var(--lime);
+    overflow: hidden;
+  }
 
-        .ref-item {
-            display: grid;
-            grid-template-columns: 28px 106px 106px;
-            gap: 10px;
-            align-items: start;
-        }
+  #balance-fill {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 4px;
+    background: var(--lime);
+    transition: none;
+  }
 
-        .ref-visual {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 6px;
-        }
+  #balance-safe {
+    position: absolute;
+    left: 38%;
+    right: 38%;
+    top: 0;
+    bottom: 0;
+    background: #bfff5c33;
+  }
 
-        .ref-caption {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 10px;
-            letter-spacing: 0.16em;
-            text-transform: uppercase;
-            color: var(--silver);
-            text-align: center;
-            max-width: 120px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            width: 100%;
-        }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #221336f0;
+    text-align: center;
+    gap: 18px;
+    font-family: 'Playfair Display', serif;
+  }
 
-        .glyph-box {
-            width: 100%;
-            height: 156px;
-            border: 1px solid var(--line);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--charcoal);
-            border-radius: 2px;
-            overflow: hidden;
-        }
-        .glyph-box img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            padding: 6px;
-        }
-        .glyph-box svg {
-            width: 40px;
-            height: 40px;
-        }
-        .glyph-box svg * {
-            stroke: var(--off-white);
-        }
+  .overlay h1 {
+    font-size: clamp(32px, 5vw, 52px);
+    margin: 0;
+    color: var(--lime);
+    letter-spacing: 1px;
+  }
 
-        .ref-index {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 11px;
-            color: var(--steel);
-            text-align: center;
-            letter-spacing: 0.08em;
-            margin-top: 42px;
-        }
+  .overlay p {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px;
+    color: var(--cream);
+    max-width: 460px;
+    line-height: 1.5;
+    margin: 0;
+  }
 
-        .slot {
-            width: 106px;
-            height: 106px;
-            border: 1px dashed var(--steel);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 2px;
-            cursor: pointer;
-            transition: border-color 0.2s, background 0.2s;
-            justify-self: end;
-            overflow: hidden;
-            background: var(--black);
-        }
-        .slot:hover {
-            border-color: var(--off-white);
-        }
-        .slot.drag-over {
-            border-color: var(--white);
-            background: var(--charcoal);
-        }
-        .slot.filled {
-            border-style: solid;
-            border-color: var(--off-white);
-            background: var(--charcoal);
-            cursor: grab;
-        }
-        .slot img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            padding: 6px;
-        }
-        .slot svg {
-            width: 36px;
-            height: 36px;
-        }
-        .slot svg * {
-            stroke: var(--off-white);
-        }
+  .overlay .score-line {
+    font-size: 22px;
+    color: var(--pink);
+  }
 
-        /* ── sample pool ── */
-        .pool {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 14px;
-        }
-        .pool.drag-over {
-            outline: 1px dashed var(--steel);
-            outline-offset: 6px;
-        }
+  button {
+    font-family: 'Playfair Display', serif;
+    font-size: 16px;
+    letter-spacing: 1px;
+    background: var(--pink);
+    color: var(--plum-deep);
+    font-weight: 700;
+    border: 1px solid var(--lime);
+    padding: 12px 30px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: background 0.2s ease, transform 0.15s ease;
+  }
 
-        .tile {
-            aspect-ratio: 1;
-            border: 1px solid var(--line);
-            background: var(--charcoal);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 2px;
-            cursor: grab;
-            transition: transform 0.15s, border-color 0.15s, background 0.15s;
-            overflow: hidden;
-        }
-        .tile:hover {
-            transform: translateY(-2px);
-            border-color: var(--silver);
-        }
-        .tile.selected {
-            border-color: var(--white);
-            background: var(--off-white);
-        }
-        .tile.selected svg * {
-            stroke: var(--black);
-        }
-        .tile img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            padding: 6px;
-        }
-        .tile svg {
-            width: 56%;
-            height: 56%;
-        }
-        .tile svg * {
-            stroke: var(--off-white);
-        }
-        .tile.gone {
-            visibility: hidden;
-        }
-        .tile.dragging {
-            opacity: 0.35;
-        }
+  button:hover { background: var(--lime); transform: translateY(-1px); }
+  button:active { transform: translateY(0px); }
 
-        .fallback-mark {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 11px;
-            color: var(--steel);
-            letter-spacing: 0.06em;
-            text-align: center;
-            padding: 4px;
-        }
+  .hidden { display: none !important; }
 
-        /* ── action ── */
-        .action {
-            text-align: center;
-            margin-top: 40px;
-            transition: opacity 0.5s ease;
-        }
-        button#commit {
-            font-family: 'IBM Plex Mono', monospace;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-            font-size: 13px;
-            padding: 16px 40px;
-            background: transparent;
-            border: 1px solid var(--steel);
-            color: var(--steel);
-            cursor: not-allowed;
-            border-radius: 2px;
-            transition: all 0.25s;
-        }
-        button#commit.enabled {
-            color: var(--black);
-            background: linear-gradient(180deg, var(--white), var(--silver));
-            border-color: var(--white);
-            cursor: pointer;
-        }
-        button#commit.enabled:hover {
-            filter: brightness(1.1);
-            transform: translateY(-1px);
-        }
-        button#commit:focus-visible {
-            outline: 2px solid var(--white);
-            outline-offset: 3px;
-        }
+  .controls-hint {
+    font-size: 15px;
+    color: #bfff5ccc;
+    letter-spacing: 1px;
+  }
 
-        .note {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 11px;
-            color: var(--steel);
-            text-align: center;
-            margin-top: 14px;
-            letter-spacing: 0.05em;
-        }
+  /* The medallion struck for this player alone: its colour is drawn once,
+     kept in local storage, and never drawn again. */
+  #victory-circle {
+    width: 170px;
+    height: 170px;
+    border-radius: 50%;
+    background: #888;
+    border: 3px solid var(--cream);
+    box-shadow: 0 0 0 6px #22133699, 0 10px 34px #00000059;
+  }
 
-        /* ── overlays ── */
-        .overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(8, 8, 10, 0.94);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            z-index: 50;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.4s ease;
-        }
-        .overlay.show {
-            opacity: 1;
-            pointer-events: all;
-        }
+  #victory-circle-caption {
+    font-size: 15px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--lime);
+    font-family: 'Cormorant Garamond', serif;
+    margin: 0;
+  }
 
-        .overlay .result-title {
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: clamp(40px, 10vw, 88px);
-            letter-spacing: 0.05em;
-            text-align: center;
-        }
-        .overlay .result-sub {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 13px;
-            letter-spacing: 0.2em;
-            color: var(--silver);
-            margin-top: 14px;
-            text-transform: uppercase;
-            text-align: center;
-            max-width: 420px;
-            padding: 0 20px;
-        }
-
-        .rings {
-            position: absolute;
-            inset: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-        }
-        .ring {
-            position: absolute;
-            border: 1px solid var(--off-white);
-            border-radius: 50%;
-            opacity: 0;
-            animation: ring-out 2.2s ease-out infinite;
-        }
-        .ring:nth-child(2) {
-            animation-delay: 0.5s;
-        }
-        .ring:nth-child(3) {
-            animation-delay: 1s;
-        }
-        @keyframes ring-out {
-            0% {
-                width: 20px;
-                height: 20px;
-                opacity: 0.9;
-            }
-            100% {
-                width: 640px;
-                height: 640px;
-                opacity: 0;
-            }
-        }
-
-        .overlay.win .result-title {
-            background: linear-gradient(180deg, var(--white), var(--silver));
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-            animation: pop-in 0.6s cubic-bezier(.2, 1.4, .4, 1);
-        }
-        @keyframes pop-in {
-            0% {
-                transform: scale(0.7);
-                opacity: 0;
-            }
-            100% {
-                transform: scale(1);
-                opacity: 1;
-            }
-        }
-
-        .overlay.lose .result-title {
-            color: var(--off-white);
-            animation: glitch 0.5s steps(2, end) 3;
-        }
-        @keyframes glitch {
-            0% {
-                transform: translate(0, 0);
-                filter: invert(0);
-            }
-            20% {
-                transform: translate(-4px, 2px);
-                filter: invert(1);
-            }
-            40% {
-                transform: translate(4px, -2px);
-                filter: invert(0);
-            }
-            60% {
-                transform: translate(-3px, -1px);
-                filter: invert(1);
-            }
-            80% {
-                transform: translate(3px, 1px);
-                filter: invert(0);
-            }
-            100% {
-                transform: translate(0, 0);
-                filter: invert(0);
-            }
-        }
-        .overlay.lose {
-            animation: flash-bg 0.5s ease-out;
-        }
-        @keyframes flash-bg {
-            0% {
-                background: rgba(255, 255, 255, 0.85);
-            }
-            100% {
-                background: rgba(8, 8, 10, 0.94);
-            }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            .ring,
-            .overlay.win .result-title,
-            .overlay.lose .result-title,
-            .overlay.lose {
-                animation: none;
-            }
-        }
-
-        .locked-msg {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 11px;
-            letter-spacing: 0.1em;
-            color: var(--steel);
-            margin-top: 26px;
-            text-align: center;
-        }
-
-        /* ── phone blocker ── */
-        .phone-blocker {
-            position: fixed;
-            inset: 0;
-            background: var(--black);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            z-index: 60;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.5s ease;
-            padding: 32px;
-            text-align: center;
-        }
-        .phone-blocker.show {
-            opacity: 1;
-            pointer-events: all;
-        }
-        .phone-blocker .icon {
-            font-size: 52px;
-            margin-bottom: 24px;
-            opacity: 0.5;
-        }
-        .phone-blocker h2 {
-            font-family: 'Bebas Neue', sans-serif;
-            font-size: clamp(32px, 8vw, 56px);
-            letter-spacing: 0.04em;
-            margin: 0 0 12px;
-            color: var(--off-white);
-        }
-        .phone-blocker p {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 14px;
-            letter-spacing: 0.1em;
-            color: var(--silver);
-            max-width: 480px;
-            line-height: 1.6;
-            margin: 0;
-        }
-        .phone-blocker .hint {
-            font-family: 'IBM Plex Mono', monospace;
-            font-size: 11px;
-            color: var(--steel);
-            margin-top: 28px;
-            letter-spacing: 0.05em;
-        }
-
-        /* ── when phone-blocker is active, hide the game ── */
-        body.phone-blocked .wrap {
-            opacity: 0;
-            pointer-events: none;
-        }
-        body.phone-blocked .bg-gradient {
-            animation: none !important;
-            background: var(--black) !important;
-        }
-        body.phone-blocked .bg-scan {
-            animation: none !important;
-        }
-    </style>
+  #closed-note {
+    font-size: 17px;
+    color: var(--pink);
+    letter-spacing: 1px;
+  }
+</style>
 </head>
 <body>
 
-    <div class="bg-gradient" id="bgGradient"></div>
-    <div class="bg-grain"></div>
-    <div class="bg-scan"></div>
+<div id="stage">
+  <canvas id="game" width="900" height="720"></canvas>
 
-    <div class="wrap">
-        <header>
-            <div class="eyebrow">Quick Matching Test</div>
-            <h1>OWARA'S BIG MATCH RECOGNITION SHOWDOWN</h1>
-            <p class="subtext">Assign a face to each anonymous pose! Then submit to see if you got it right. One submission per person.</p>
-            <div class="status-line" id="statusLine">0 / 8 assigned</div>
-        </header>
-
-        <div class="panels">
-            <section class="panel">
-                <div class="panel-title"><span>Reference</span><span>Fixed · 2‑col</span></div>
-                <div id="refList"></div>
-            </section>
-
-            <section class="panel">
-                <div class="panel-title"><span>Samples</span><span>Unordered</span></div>
-                <div class="pool" id="pool"></div>
-            </section>
-        </div>
-
-        <div class="action">
-            <button id="commit" disabled>That's it!</button>
-            <div class="note">Drag a sample onto a reference slot to place it — or tap the sample, then tap the slot. Drag or tap a filled slot to return it.</div>
-        </div>
+  <div id="hud">
+    <div class="hud-block">
+      <div class="hud-label">Score</div>
+      <div class="hud-value" id="score">0</div>
     </div>
-
-    <!-- ── Result overlay ── -->
-    <div class="overlay" id="overlay">
-        <div class="rings" id="rings"></div>
-        <div class="result-title" id="resultTitle"></div>
-        <div class="result-sub" id="resultSub"></div>
-        <div class="locked-msg">This test accepts one submission per visitor. It will not reopen here.</div>
+    <div class="hud-block">
+      <div class="hud-label">Spills Remaining</div>
+      <div class="hud-value cups" id="cups">☕ ☕ ☕</div>
     </div>
+  </div>
 
-    <!-- ── Phone blocker overlay ── -->
-    <div class="phone-blocker" id="phoneBlocker">
-        <div class="icon">🖥️</div>
-        <h2>DESKTOP ONLY</h2>
-        <p>This experience is designed for desktop browsers. Please open it on a computer to play.</p>
-        <div class="hint">— OWARA LABS —</div>
+  <div id="balance-wrap">
+    <div id="balance-label">Tower Balance</div>
+    <div id="balance-track">
+      <div id="balance-safe"></div>
+      <div id="balance-fill"></div>
     </div>
+  </div>
 
-    <audio id="sfxWin" src="applause.wav" preload="auto"></audio>
-    <audio id="sfxLose" src="No.wav" preload="auto"></audio>
+  <div class="overlay" id="start-screen">
+    <h1>High Tea Toppler</h1>
+    <p>You are the household's most devoted butler. China falls from above &mdash; catch each piece upon your tray and stack it into a tower. The taller it grows, the more it sways, so mind your footing. Miss three pieces, or let the tower topple, and the evening is ruined.</p>
+    <p class="controls-hint">&larr; &rarr; or A / D to move &nbsp;&middot;&nbsp; Space to start</p>
+    <button id="start-btn">Begin Service</button>
+  </div>
 
-    <script>
-        (function() {
-            const STORAGE_KEY = "matchProtocolResult";
-            const COLOR_KEY = "matchProtocolColor";
+  <div class="overlay hidden" id="gameover-screen">
+    <h1 id="gameover-title">A Regrettable Spill</h1>
+    <p id="gameover-reason">The tower has toppled.</p>
+    <p class="score-line">Final Score: <span id="final-score">0</span></p>
+    <div id="victory-circle" class="hidden" role="img" aria-label="Your personal colour"></div>
+    <p id="victory-circle-caption" class="hidden">Your colour of service</p>
+    <p id="closed-note" class="hidden">The service is concluded. There will be no further attempts.</p>
+    <button id="restart-btn">Try Again</button>
+  </div>
+</div>
 
-            const IMAGE_FILES = ["1.png", "2.png", "3.png", "4.png", "5.png", "6.png", "7.png", "8.png"];
-            const LEFT_DIR = "Images/Left/";
-            const RIGHT_DIR = "Images/Right/";
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
 
-            function imgMarkup(dir, index, altPrefix) {
-                return `<img src="${dir}${IMAGE_FILES[index]}" alt="${altPrefix} ${index+1}" draggable="false">`;
-            }
+  const scoreEl = document.getElementById('score');
+  const cupsEl = document.getElementById('cups');
+  const balanceFill = document.getElementById('balance-fill');
+  const startScreen = document.getElementById('start-screen');
+  const gameoverScreen = document.getElementById('gameover-screen');
+  const gameoverTitle = document.getElementById('gameover-title');
+  const gameoverReason = document.getElementById('gameover-reason');
+  const finalScoreEl = document.getElementById('final-score');
+  const startBtn = document.getElementById('start-btn');
+  const restartBtn = document.getElementById('restart-btn');
+  const victoryCircle = document.getElementById('victory-circle');
+  const victoryCaption = document.getElementById('victory-circle-caption');
+  const closedNote = document.getElementById('closed-note');
 
-            function attachFallback(container, index) {
-                const img = container.querySelector('img');
-                if (!img) return;
-                img.addEventListener('error', () => {
-                    img.replaceWith(Object.assign(document.createElement('div'), {
-                        className: 'fallback-mark',
-                        textContent: 'IMG ' + String(index + 1).padStart(2, '0') + ' MISSING'
-                    }));
-                }, { once: true });
-            }
 
-            function shuffled(arr) {
-                const a = arr.slice();
-                for (let i = a.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [a[i], a[j]] = [a[j], a[i]];
-                }
-                return a;
-            }
+  const RECORD_KEY = 'highTeaToppler.record.v1';
+  const MAX_LOSSES = 2;
 
-            function fileLabel(index) {
-                return IMAGE_FILES[index].replace(/\.[^./\\]+$/, '');
-            }
+  function blankRecord() {
+    return { losses: 0, closed: null, title: '', message: '', score: 0, colour: null };
+  }
 
-            function isPhone() {
-                // Check screen width and user agent
-                const ua = navigator.userAgent;
-                const mobileUA = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-                const smallScreen = window.innerWidth < 640;
-                // Also check for touch + small screen as a fallback
-                const touchAndSmall = 'ontouchstart' in window && window.innerWidth < 768;
-                return mobileUA || smallScreen || touchAndSmall;
-            }
+  function loadRecord() {
+    try {
+      const raw = localStorage.getItem(RECORD_KEY);
+      if (!raw) return blankRecord();
+      return Object.assign(blankRecord(), JSON.parse(raw));
+    } catch (err) {
+      // Private browsing, a disabled store, or corrupted data — begin afresh
+      // rather than refusing to run at all.
+      return blankRecord();
+    }
+  }
 
-            function generateRandomColor() {
-                const hue = Math.floor(Math.random() * 160);
-                const saturation = 70 + Math.floor(Math.random() * 20);
-                const lightness = 15 + Math.floor(Math.random() * 15);
-                return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-            }
+  function saveRecord() {
+    try { localStorage.setItem(RECORD_KEY, JSON.stringify(record)); } catch (err) { /* nothing to be done */ }
+  }
 
-            const ids = [0, 1, 2, 3, 4, 5, 6, 7];
-            const leftOrder = shuffled(ids);
-            let rightOrder = shuffled(ids);
-            if (rightOrder.join() === leftOrder.join()) rightOrder = shuffled(ids);
+  const record = loadRecord();
 
-            const refList = document.getElementById('refList');
-            const pool = document.getElementById('pool');
-            const statusLine = document.getElementById('statusLine');
-            const commitBtn = document.getElementById('commit');
-            const overlay = document.getElementById('overlay');
-            const resultTitle = document.getElementById('resultTitle');
-            const resultSub = document.getElementById('resultSub');
-            const ringsHost = document.getElementById('rings');
-            const sfxWin = document.getElementById('sfxWin');
-            const sfxLose = document.getElementById('sfxLose');
-            const bgGradient = document.getElementById('bgGradient');
-            const phoneBlocker = document.getElementById('phoneBlocker');
+  if (!record.colour) {
+    const r = Math.floor(Math.random() * 256);
+    const g = Math.floor(Math.random() * 256);
+    const b = Math.floor(Math.random() * 256);
 
-            let selectedTile = null;
-            let locked = false;
+    record.colour = `rgb(${r}, ${g}, ${b})`;
+    saveRecord();
+  }
+  victoryCircle.style.background = record.colour;
 
-            // ── build reference rows ──
-            function buildRefRows() {
-                const fragment = document.createDocumentFragment();
-                const pairs = [];
-                for (let i = 0; i < leftOrder.length; i += 2) {
-                    pairs.push([leftOrder[i], leftOrder[i + 1]]);
-                }
+  const isClosed = () => record.closed !== null;
 
-                pairs.forEach((pair, rowIdx) => {
-                    const row = document.createElement('div');
-                    row.className = 'ref-row';
+  // ---------------------------------------------------------------------
+  // SOUND
+  // A small pool of copies, cycled in turn, so two pieces caught in quick
+  // succession do not cut one another off. A missing file is ignored in
+  // silence rather than throwing.
+  // ---------------------------------------------------------------------
+  const CATCH_SOUND_SRC = 'ploft.wav';
+  const CATCH_SOUND_VOLUME = 0.7;
+  const catchSounds = [];
+  for (let i = 0; i < 5; i++) {
+    const a = new Audio(CATCH_SOUND_SRC);
+    a.preload = 'auto';
+    a.volume = CATCH_SOUND_VOLUME;
+    catchSounds.push(a);
+  }
+  let catchSoundIndex = 0;
 
-                    pair.forEach((glyphId, colIdx) => {
-                        const globalIndex = rowIdx * 2 + colIdx;
-                        const item = document.createElement('div');
-                        item.className = 'ref-item';
+  function playCatchSound() {
+    const a = catchSounds[catchSoundIndex];
+    catchSoundIndex = (catchSoundIndex + 1) % catchSounds.length;
+    try {
+      a.currentTime = 0;
+      const played = a.play();
+      if (played && typeof played.catch === 'function') played.catch(() => {});
+    } catch (err) { /* the file is absent or the browser is unwilling */ }
+  }
 
-                        const idxEl = document.createElement('div');
-                        idxEl.className = 'ref-index';
-                        idxEl.textContent = String(globalIndex + 1).padStart(2, '0');
+  const GROUND_Y = H - 196;  // y of the tray surface, where the tower is built
+  const PLAYER_W = 132;      // tray width — also the catching hitbox
+  const PLAYER_H = 158;      // drop from the tray surface down to the floor line
+  const TRAY_THICKNESS = 13;
 
-                        const visual = document.createElement('div');
-                        visual.className = 'ref-visual';
+  const SHOW_TRAY = false;
+  const PLAYER_SPEED = 7.5;
+  const PLAY_MARGIN = 14;
+  const MAX_MISSES = 3;
+  const REDEEMING_SCORE = 13;
+  const MAX_TILT = 38; // degrees — beyond this, the tower falls
 
-                        const box = document.createElement('div');
-                        box.className = 'glyph-box';
-                        box.innerHTML = imgMarkup(LEFT_DIR, glyphId, 'Reference');
-                        attachFallback(box, glyphId);
+  const BUTLER_SIZE = 400;      // 150 of the sprite's 200px — raise for a larger figure
+  const BUTLER_OFFSET_X = -80;    // + moves him right of the tray's centre
+  const BUTLER_OFFSET_Y = 0;    // + sinks him below the floor line, − lifts him
+  const BUTLER_FLIP_WITH_DIRECTION = false; // true mirrors the sprite when walking left
+  const BUTLER_SHADOW = true;   // soft ellipse beneath his feet
 
-                        const cap = document.createElement('div');
-                        cap.className = 'ref-caption';
-                        cap.textContent = fileLabel(glyphId);
+  const WALK_BOB_HEIGHT = 4.0;   // px he rises on each step
+  const WALK_STEP_RATE = 0.30;   // radians per frame; higher = brisker stride
+  const WALK_LEAN_MAX = 5.0;     // degrees he leans into the direction of travel
+  const IDLE_BREATH_HEIGHT = 1.1;// px of breathing while standing still
+  const IDLE_BREATH_RATE = 0.045;
+  const WORRIED_TREMBLE = 0.7;   // px of fine tremble once the tower alarms him
+  const TRAY_FOLLOW = 0.35;      // 0 = tray held perfectly level, 1 = it rides every step
 
-                        visual.appendChild(box);
-                        visual.appendChild(cap);
+  const ITEM_SCALE = 1.5;
+  const STACK_GAP = 3;    // px of air between stacked pieces
+  const STACK_BASE_INSET = TRAY_THICKNESS - 4;
 
-                        const slot = document.createElement('div');
-                        slot.className = 'slot';
-                        slot.dataset.correct = glyphId;
-                        slot.dataset.slotIndex = globalIndex;
+  const BALANCE_INTENSITY = 0.45;
 
-                        slot.addEventListener('dragover', (e) => {
-                            if (locked || slot.classList.contains('filled')) return;
-                            e.preventDefault();
-                            slot.classList.add('drag-over');
-                        });
-                        slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
-                        slot.addEventListener('drop', (e) => {
-                            e.preventDefault();
-                            slot.classList.remove('drag-over');
-                            if (locked || slot.classList.contains('filled')) return;
-                            const sourceSlotIndex = e.dataTransfer.getData('application/slot-index');
-                            const iconId = e.dataTransfer.getData('text/plain');
-                            if (sourceSlotIndex !== '') {
-                                const sourceSlot = refList.querySelector(
-                                    `.slot[data-slot-index="${sourceSlotIndex}"]`);
-                                if (sourceSlot && sourceSlot !== slot) {
-                                    sourceSlot.classList.remove('filled');
-                                    sourceSlot.draggable = false;
-                                    sourceSlot.innerHTML = '';
-                                    delete sourceSlot.dataset.placed;
-                                    slot.classList.add('filled');
-                                    slot.dataset.placed = iconId;
-                                    slot.draggable = true;
-                                    slot.innerHTML = imgMarkup(RIGHT_DIR, Number(iconId), 'Placed sample');
-                                    attachFallback(slot, Number(iconId));
-                                    updateStatus();
-                                }
-                                return;
-                            }
-                            placeInSlot(slot, iconId);
-                        });
+  const SAFE_HEIGHT = 5;
+  const ITEM_TYPES = [
+    { name: 'cup', color: '#f2e9dd', accent: '#c9a227', h: 20, w: 34 },
+    { name: 'saucer', color: '#e6c65c', accent: '#7a2e2e', h: 10, w: 44 },
+    { name: 'teapot', color: '#7a2e2e', accent: '#c9a227', h: 26, w: 36 },
+  ].map(t => ({ ...t, w: Math.round(t.w * ITEM_SCALE), h: Math.round(t.h * ITEM_SCALE) }));
 
-                        slot.addEventListener('click', () => {
-                            if (locked) return;
-                            if (slot.classList.contains('filled')) {
-                                returnFromSlot(slot);
-                                return;
-                            }
-                            if (!selectedTile) return;
-                            placeInSlot(slot, selectedTile.dataset.icon);
-                        });
 
-                        slot.addEventListener('dragstart', (e) => {
-                            if (!slot.classList.contains('filled') || locked) return;
-                            e.dataTransfer.setData('application/slot-index', slot.dataset.slotIndex);
-                            e.dataTransfer.setData('text/plain', slot.dataset.placed);
-                            e.dataTransfer.effectAllowed = 'move';
-                        });
+  const SPRITE_FOLDER = 'Items/';
+  const PLAYER_SPRITE_FOLDER = 'Items/';
+  const SHOW_PLACEHOLDER_LABELS = true; // small text tag on placeholder art, for reference while sourcing sprites
 
-                        item.appendChild(idxEl);
-                        item.appendChild(visual);
-                        item.appendChild(slot);
-                        row.appendChild(item);
-                    });
+  function loadSprite(src) {
+    const rec = { img: new Image(), loaded: false, failed: false };
+    rec.img.onload = () => { rec.loaded = true; };
+    rec.img.onerror = () => { rec.failed = true; };
+    rec.img.src = src;
+    return rec;
+  }
 
-                    fragment.appendChild(row);
-                });
-                refList.appendChild(fragment);
-            }
+  ITEM_TYPES.forEach((type) => {
+    type.fallingSprite = loadSprite(`${SPRITE_FOLDER}${type.name}_falling.png`);
+    type.placedSprite = loadSprite(`${SPRITE_FOLDER}${type.name}_placed.png`);
+  });
 
-            // ── build sample pool ──
-            function buildPool() {
-                const fragment = document.createDocumentFragment();
-                rightOrder.forEach((glyphId) => {
-                    const tile = document.createElement('div');
-                    tile.className = 'tile';
-                    tile.draggable = true;
-                    tile.dataset.icon = glyphId;
-                    tile.innerHTML = imgMarkup(RIGHT_DIR, glyphId, 'Sample');
-                    fragment.appendChild(tile);
-                    attachFallback(tile, glyphId);
+  const playerSprites = {
+    normal: loadSprite(`${PLAYER_SPRITE_FOLDER}butler_normal.png`),
+    worried: loadSprite(`${PLAYER_SPRITE_FOLDER}butler_worried.png`),
+  };
 
-                    tile.addEventListener('dragstart', (e) => {
-                        if (locked) return;
-                        e.dataTransfer.setData('text/plain', tile.dataset.icon);
-                        e.dataTransfer.effectAllowed = 'move';
-                        tile.classList.add('dragging');
-                    });
-                    tile.addEventListener('dragend', () => tile.classList.remove('dragging'));
+  // Worried if the stack has grown tall, or the balance is leaning badly
+  function isButlerWorried() {
+    return stack.length > 10 || Math.abs(tilt) > MAX_TILT * 0.7;
+  }
 
-                    tile.addEventListener('click', () => {
-                        if (locked) return;
-                        if (tile.classList.contains('gone')) return;
-                        if (selectedTile === tile) {
-                            clearSelection();
-                            return;
-                        }
-                        clearSelection();
-                        selectedTile = tile;
-                        tile.classList.add('selected');
-                    });
-                });
-                pool.appendChild(fragment);
-            }
+  let keys = {};
+  let player, items, stack, misses, score, tilt, tiltVel, spawnTimer, spawnInterval, gameSpeed, running, rafId;
 
-            pool.addEventListener('dragover', (e) => {
-                if (locked) return;
-                e.preventDefault();
-                pool.classList.add('drag-over');
-            });
-            pool.addEventListener('dragleave', () => pool.classList.remove('drag-over'));
-            pool.addEventListener('drop', (e) => {
-                e.preventDefault();
-                pool.classList.remove('drag-over');
-                if (locked) return;
-                const sourceSlotIndex = e.dataTransfer.getData('application/slot-index');
-                if (sourceSlotIndex === '') return;
-                const slot = refList.querySelector(`.slot[data-slot-index="${sourceSlotIndex}"]`);
-                if (slot) returnFromSlot(slot);
-            });
+  // Purely cosmetic state for the butler's carriage: a step cycle, the height
+  // of his current step, the lean into his stride, and which way he faces.
+  const anim = { walkPhase: 0, breathPhase: 0, bob: 0, lean: 0, facing: 1, frames: 0 };
 
-            function clearSelection() {
-                if (selectedTile) {
-                    selectedTile.classList.remove('selected');
-                    selectedTile = null;
-                }
-            }
+  function currentMoveDir() {
+    const left = keys['ArrowLeft'] || keys['a'] || keys['A'];
+    const right = keys['ArrowRight'] || keys['d'] || keys['D'];
+    return (left && !right) ? -1 : (right && !left) ? 1 : 0;
+  }
 
-            function placeInSlot(slot, iconId) {
-                const sourceTile = pool.querySelector(`.tile[data-icon="${iconId}"]:not(.gone)`);
-                if (!sourceTile) return;
-                slot.classList.add('filled');
-                slot.dataset.placed = iconId;
-                slot.draggable = true;
-                slot.innerHTML = imgMarkup(RIGHT_DIR, Number(iconId), 'Placed sample');
-                attachFallback(slot, Number(iconId));
-                sourceTile.classList.add('gone');
-                clearSelection();
-                updateStatus();
-            }
+  // How far the tray has been carried off the resting line by his stride.
+  function trayLift() {
+    return -anim.bob * TRAY_FOLLOW;
+  }
 
-            function returnFromSlot(slot) {
-                const iconId = slot.dataset.placed;
-                if (!iconId) return;
-                const returned = pool.querySelector(`.tile[data-icon="${iconId}"].gone`);
-                if (returned) returned.classList.remove('gone');
-                slot.classList.remove('filled');
-                slot.draggable = false;
-                slot.innerHTML = '';
-                delete slot.dataset.placed;
-                updateStatus();
-            }
+  function updateButlerAnim(moveDir) {
+    anim.frames++;
+    anim.breathPhase += IDLE_BREATH_RATE;
 
-            function updateStatus() {
-                const filled = document.querySelectorAll('.slot.filled').length;
-                statusLine.textContent = filled + ' / 8 assigned';
-                statusLine.classList.toggle('ready', filled === 8);
-                commitBtn.disabled = filled !== 8;
-                commitBtn.classList.toggle('enabled', filled === 8);
-            }
+    let targetBob;
+    if (moveDir !== 0) {
+      anim.walkPhase += WALK_STEP_RATE;
+      anim.facing = moveDir;
+      // A stride lifts him twice per cycle; |sin| gives that left-right rhythm.
+      targetBob = Math.abs(Math.sin(anim.walkPhase)) * WALK_BOB_HEIGHT;
+    } else {
+      // Ease the stride out rather than stopping mid-step, then let him breathe.
+      anim.walkPhase += WALK_STEP_RATE * 0.25;
+      targetBob = (Math.sin(anim.breathPhase) * 0.5 + 0.5) * IDLE_BREATH_HEIGHT;
+    }
 
-            function evaluate() {
-                const slots = document.querySelectorAll('.slot');
-                let allCorrect = true;
-                slots.forEach(slot => {
-                    if (slot.dataset.placed !== slot.dataset.correct) allCorrect = false;
-                });
-                return allCorrect;
-            }
+    anim.bob += (targetBob - anim.bob) * 0.35;
 
-            function playSound(el) {
-                el.currentTime = 0;
-                el.play().catch(() => {});
-            }
+    const targetLean = moveDir * WALK_LEAN_MAX;
+    anim.lean += (targetLean - anim.lean) * 0.12;
+  }
 
-            function spawnRings() {
-                ringsHost.innerHTML = '<div class="ring"></div><div class="ring"></div><div class="ring"></div>';
-            }
+  function resetState() {
+    player = { x: W / 2 - PLAYER_W / 2, w: PLAYER_W, h: PLAYER_H };
+    items = [];
+    stack = [];
+    misses = 0;
+    score = 0;
+    tilt = 0;
+    tiltVel = 0;
+    spawnTimer = 0;
+    spawnInterval = 70;
+    gameSpeed = 1;
+    running = true;
+    anim.walkPhase = 0; anim.breathPhase = 0; anim.bob = 0; anim.lean = 0; anim.facing = 1;
+    updateHud();
+  }
 
-            function showResult(win, storedColor) {
-                const color = storedColor || generateRandomColor();
+  function updateHud() {
+    scoreEl.textContent = score;
+    let cupStr = '';
+    for (let i = 0; i < MAX_MISSES; i++) {
+      cupStr += i < (MAX_MISSES - misses) ? '☕ ' : '<span class="cup-lost">☕</span> ';
+    }
+    cupsEl.innerHTML = cupStr.trim();
+  }
 
-                localStorage.setItem(STORAGE_KEY, win ? 'win' : 'lose');
-                localStorage.setItem(COLOR_KEY, color);
+  function spawnItem() {
+    const type = ITEM_TYPES[Math.floor(Math.random() * ITEM_TYPES.length)];
+    const x = 30 + Math.random() * (W - 60 - type.w);
+    const speed = (2.2 + Math.random() * 1.6) * gameSpeed;
+    items.push({ x, y: -30, ...type, speed });
+  }
 
-                bgGradient.style.setProperty('--random-bg', color);
-                bgGradient.style.background = color;
-                overlay.style.background = color;
+  function stackHeightPx() {
+    return stack.reduce((sum, it) => sum + it.h + STACK_GAP, 0);
+  }
 
-                document.body.classList.add('result-shown');
+  function update() {
+    if (!running) return;
 
-                overlay.classList.add(win ? 'win' : 'lose');
-                if (win) {
-                    spawnRings();
-                    resultTitle.textContent = 'MATCH CONFIRMED';
-                    resultSub.textContent = 'Every sample aligns with its reference mark.';
-                    playSound(sfxWin);
-                } else {
-                    resultTitle.textContent = 'MISMATCH DETECTED';
-                    resultSub.textContent = 'One or more samples do not correspond to their reference mark.';
-                    playSound(sfxLose);
-                }
-                requestAnimationFrame(() => overlay.classList.add('show'));
-                locked = true;
-            }
+    // player movement
+    const moveDir = currentMoveDir();
+    player.x += moveDir * PLAYER_SPEED;
+    player.x = Math.max(PLAY_MARGIN, Math.min(W - player.w - PLAY_MARGIN, player.x));
 
-            function showPhoneBlocker() {
-                document.body.classList.add('phone-blocked');
-                phoneBlocker.classList.add('show');
-                document.body.classList.remove('result-shown');
-                bgGradient.style.animation = 'none';
-                bgGradient.style.background = 'var(--black)';
-            }
+    updateButlerAnim(moveDir);
 
-            function init() {
-                const storedResult = localStorage.getItem(STORAGE_KEY);
-                const storedColor = localStorage.getItem(COLOR_KEY);
+    // difficulty ramp
+    gameSpeed = 1 + score * 0.02;
+    spawnInterval = Math.max(28, 70 - score * 1.2);
 
-                if (storedResult === 'win' || storedResult === 'lose') {
-                    buildRefRows();
-                    buildPool();
-                    updateStatus();
-                    showResult(storedResult === 'win', storedColor || undefined);
-                    return;
-                }
+    spawnTimer++;
+    if (spawnTimer >= spawnInterval) {
+      spawnTimer = 0;
+      spawnItem();
+    }
 
-                if (isPhone()) {
-                    buildRefRows();
-                    buildPool();
-                    updateStatus();
-                    showPhoneBlocker();
-                    return;
-                }
+    const plateY = GROUND_Y + trayLift() - STACK_BASE_INSET - stackHeightPx();
 
-                buildRefRows();
-                buildPool();
-                updateStatus();
+    // With the larger china the tower reaches the ceiling sooner. Rather than
+    // letting pieces spawn below the top of the stack and fall uncatchably,
+    // the service closes on a high note.
+    if (plateY < 36) {
+      return endGame('crowned', 'The tower has reached the chandelier. Nothing further can be added.');
+    }
 
-                commitBtn.addEventListener('click', () => {
-                    if (locked || commitBtn.disabled) return;
-                    const win = evaluate();
-                    showResult(win);
-                });
-            }
+    for (let i = items.length - 1; i >= 0; i--) {
+      const it = items[i];
+      it.y += it.speed;
 
-            window.__match = { leftOrder, rightOrder, isPhone: isPhone() };
+      const withinX = it.x + it.w > player.x && it.x < player.x + player.w;
+      const atPlate = it.y + it.h >= plateY - 6 && it.y + it.h <= plateY + 16;
 
-            init();
+      if (withinX && atPlate) {
+        stack.push(it);
+        items.splice(i, 1);
+        score++;
+        // catching adds a jolt of instability — but only once the tower has
+        // grown past the safe base height
+        const jHeight = Math.max(0, stack.length - SAFE_HEIGHT);
+        tiltVel += (Math.random() - 0.5) * (jHeight * 0.35 * BALANCE_INTENSITY);
+        updateHud();
+        continue;
+      }
 
-        })();
-    </script>
+      if (it.y > H) {
+        items.splice(i, 1);
+        misses++;
+        playCatchSound();
+        updateHud();
+        if (misses >= MAX_MISSES) {
+          if (score >= REDEEMING_SCORE) {
+            return endGame('crowned', `Three pieces met the floor, but ${score} were set down nicely. The mistress spares your life.`);
+          }
+          return endGame('spilled', 'Three pieces met the floor. The mistress is most displeased.');
+        }
+      }
+    }
+
+    const n = stack.length;
+    const heightFactor = Math.max(0, n - SAFE_HEIGHT);
+
+    if (n > 0) {
+      const wobbleAmp = heightFactor * heightFactor * 0.0035 * BALANCE_INTENSITY;
+      tiltVel += Math.sin(Date.now() / 380) * wobbleAmp;
+
+      const springK = 0.05 / (1 + heightFactor * 0.12);
+      tiltVel += -tilt * springK;
+
+      tiltVel -= moveDir * 0.045 * (1 + heightFactor * 0.05);
+
+      tiltVel *= 0.88; // damping — keeps the system settled, not oscillating wildly
+      tilt += tiltVel;
+      tilt = Math.max(-60, Math.min(60, tilt));
+
+      if (heightFactor > 0 && Math.abs(tilt) >= MAX_TILT) {
+        return endGame('toppled', 'The tower swayed too far and came crashing down.');
+      }
+    } else {
+      tilt *= 0.9;
+      tiltVel *= 0.9;
+    }
+
+    balanceFill.style.left = `calc(50% + ${(tilt / MAX_TILT) * 48}%)`;
+    balanceFill.style.background = Math.abs(tilt) > MAX_TILT * 0.7 ? '#ff5c8a' : '#bfff5c';
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.strokeStyle = '#bfff5c40';
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_Y + PLAYER_H);
+    ctx.lineTo(W, GROUND_Y + PLAYER_H);
+    ctx.stroke();
+
+    items.forEach(it => drawItem(it, it.x, it.y, 'falling'));
+
+    const trayX = player.x + player.w / 2;
+    const trayY = GROUND_Y + trayLift();
+
+    ctx.save();
+    ctx.translate(trayX, trayY - STACK_BASE_INSET);
+    ctx.rotate((tilt * Math.PI) / 180);
+    let cy = 0;
+    for (let i = 0; i < stack.length; i++) {
+      const it = stack[i];
+      cy -= it.h + STACK_GAP;
+      drawItem(it, -it.w / 2, cy, 'placed');
+    }
+    ctx.restore();
+
+    drawButler(trayX, trayY);
+  }
+
+  function drawItem(it, x, y, state) {
+    const sprite = state === 'falling' ? it.fallingSprite : it.placedSprite;
+    ctx.save();
+    ctx.translate(x + it.w / 2, y + it.h / 2);
+
+    if (sprite && sprite.loaded) {
+      ctx.drawImage(sprite.img, -it.w / 2, -it.h / 2, it.w, it.h);
+    } else {
+      ctx.fillStyle = it.color;
+      ctx.strokeStyle = it.accent;
+      ctx.lineWidth = 2;
+      roundRect(-it.w / 2, -it.h / 2, it.w, it.h, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      if (SHOW_PLACEHOLDER_LABELS) {
+        ctx.fillStyle = '#00000099';
+        ctx.font = '7px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${it.name}_${state}`, 0, it.h / 2 + 9);
+      }
+    }
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawButler(cx, cy) {
+    const worried = isButlerWorried();
+    const s = BUTLER_SIZE;
+
+    const feetX = cx + BUTLER_OFFSET_X;
+    const feetY = cy + PLAYER_H + BUTLER_OFFSET_Y - trayLift();
+
+    const tremble = worried
+      ? Math.sin(anim.frames * 0.9) * WORRIED_TREMBLE
+      : 0;
+
+    if (BUTLER_SHADOW) {
+      const lift = Math.max(0, anim.bob) / Math.max(WALK_BOB_HEIGHT, 0.001);
+      ctx.save();
+      ctx.fillStyle = '#0000004d';
+      ctx.beginPath();
+      ctx.ellipse(feetX, feetY - 1, s * 0.26 * (1 - lift * 0.12), s * 0.045, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.translate(feetX + tremble, feetY - anim.bob);
+    ctx.rotate((anim.lean * Math.PI) / 180);
+    if (BUTLER_FLIP_WITH_DIRECTION && anim.facing === -1) ctx.scale(-1, 1);
+
+    const sprite = worried ? playerSprites.worried : playerSprites.normal;
+
+    if (sprite.loaded) {
+      ctx.drawImage(sprite.img, -s / 2, -s, s, s);
+    } else {
+      ctx.fillStyle = '#221336';
+      ctx.strokeStyle = '#bfff5c';
+      ctx.lineWidth = 1.5;
+      roundRect(-s * 0.21, -s * 0.72, s * 0.42, s * 0.68, s * 0.06);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = worried ? '#f0d9d3' : '#f2e9dd';
+      ctx.beginPath();
+      ctx.arc(0, -s * 0.83, s * 0.13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#bfff5c';
+      ctx.stroke();
+
+      // simple worried eyebrows vs. calm ones, so the state reads even without art
+      ctx.strokeStyle = '#221336';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      if (worried) {
+        ctx.moveTo(-s * 0.085, -s * 0.89); ctx.lineTo(-s * 0.032, -s * 0.86);
+        ctx.moveTo(s * 0.085, -s * 0.89); ctx.lineTo(s * 0.032, -s * 0.86);
+      } else {
+        ctx.moveTo(-s * 0.085, -s * 0.87); ctx.lineTo(-s * 0.032, -s * 0.88);
+        ctx.moveTo(s * 0.085, -s * 0.87); ctx.lineTo(s * 0.032, -s * 0.88);
+      }
+      ctx.stroke();
+
+      if (SHOW_PLACEHOLDER_LABELS) {
+        ctx.fillStyle = '#f2e9dd66';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(worried ? 'butler_worried' : 'butler_normal', 0, -s * 0.35);
+      }
+    }
+    ctx.restore();
+
+    if (!SHOW_TRAY) return;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = '#bfff5c';
+    ctx.strokeStyle = '#ff8bd8';
+    ctx.lineWidth = 2;
+    roundRect(-player.w / 2, -TRAY_THICKNESS, player.w, TRAY_THICKNESS, 4);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#f2e9dd66';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-player.w / 2 + 6, -TRAY_THICKNESS + 3);
+    ctx.lineTo(player.w / 2 - 6, -TRAY_THICKNESS + 3);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function loop() {
+    update();
+    draw();
+    if (running) rafId = requestAnimationFrame(loop);
+  }
+
+  function endGame(reason, message) {
+    running = false;
+    cancelAnimationFrame(rafId);
+
+    const won = reason === 'crowned';
+    const title = won ? 'Congratulations!'
+                : reason === 'toppled' ? 'The Tower Has Fallen'
+                : 'What a predictable creature!';
+
+    if (won) {
+      record.closed = 'won';
+    } else {
+      record.losses++;
+      if (record.losses >= MAX_LOSSES) record.closed = 'lost';
+    }
+    record.title = title;
+    record.message = message;
+    record.score = score;
+    saveRecord();
+
+    showEndScreen(title, message, score, won);
+  }
+
+  function showEndScreen(title, message, finalScore, won) {
+    gameoverTitle.textContent = title;
+    gameoverReason.textContent = message;
+    finalScoreEl.textContent = finalScore;
+
+    victoryCircle.classList.toggle('hidden', !won);
+    victoryCaption.classList.toggle('hidden', !won);
+    closedNote.classList.toggle('hidden', !isClosed());
+    restartBtn.classList.toggle('hidden', isClosed());
+
+    if (!isClosed()) {
+      const remaining = MAX_LOSSES - record.losses;
+      restartBtn.textContent = remaining === 1
+        ? 'Try Again \u2014 one attempt remains'
+        : 'Try Again';
+    }
+
+    startScreen.classList.add('hidden');
+    gameoverScreen.classList.remove('hidden');
+  }
+
+  function startGame() {
+    if (isClosed()) return;
+    startScreen.classList.add('hidden');
+    gameoverScreen.classList.add('hidden');
+    resetState();
+    loop();
+  }
+
+  window.addEventListener('keydown', (e) => {
+    keys[e.key] = true;
+    if (e.key === ' ' && !isClosed() && !startScreen.classList.contains('hidden')) {
+      startGame();
+    }
+    if ([' ', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault();
+  });
+  window.addEventListener('keyup', (e) => { keys[e.key] = false; });
+
+  startBtn.addEventListener('click', startGame);
+  restartBtn.addEventListener('click', startGame);
+
+  player = { x: W / 2 - PLAYER_W / 2, w: PLAYER_W, h: PLAYER_H };
+  items = []; stack = []; tilt = 0;
+  draw();
+
+  if (isClosed()) {
+    showEndScreen(
+      record.title || (record.closed === 'won' ? 'Service Complete' : 'A Regrettable Spill'),
+      record.message || 'The evening has already run its course.',
+      record.score || 0,
+      record.closed === 'won'
+    );
+  }
+})();
+</script>
+
 </body>
 </html>

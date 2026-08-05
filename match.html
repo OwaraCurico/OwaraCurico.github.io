@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MATCH GAME</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+        :root {
+            --black: #08080a;
+            --near-black: #111113;
+            --charcoal: #232326;
+            --steel: #5a5a60;
+            --silver: #a8a8ae;
+            --off-white: #f3f3f0;
+            --white: #ffffff;
+            --line: rgba(243, 243, 240, 0.14);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            background: var(--black);
+            color: var(--off-white);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: background 0.3s;
+        }
+
+        /* ── ambient bg ── */
+        .bg-gradient {
+            position: fixed;
+            inset: 0;
+            z-index: -3;
+            background:
+                radial-gradient(ellipse 80% 60% at 20% 15%, rgba(255, 255, 255, 0.07), transparent 60%),
+                radial-gradient(ellipse 70% 50% at 85% 80%, rgba(255, 255, 255, 0.05), transparent 60%),
+                var(--black);
+            animation: drift 22s ease-in-out infinite alternate;
+            transition: background 0.8s ease;
+        }
+        @keyframes drift {
+            0% {
+                background-position: 0% 0%, 0% 0%;
+            }
+            100% {
+                background-position: 6% 4%, -4% -6%;
+            }
+        }
+
+        body.result-shown .bg-gradient {
+            animation: none !important;
+            background: var(--random-bg, #08080a) !important;
+        }
+
+        .bg-grain {
+            position: fixed;
+            inset: 0;
+            z-index: -2;
+            opacity: 0.05;
+            mix-blend-mode: overlay;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+        }
+
+        .bg-scan {
+            position: fixed;
+            left: 0;
+            right: 0;
+            height: 140px;
+            z-index: -1;
+            background: linear-gradient(to bottom, transparent, rgba(255, 255, 255, 0.05), transparent);
+            animation: scan 7s linear infinite;
+            pointer-events: none;
+        }
+        @keyframes scan {
+            0% {
+                top: -140px;
+            }
+            100% {
+                top: 100%;
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .bg-gradient,
+            .bg-scan {
+                animation: none;
+            }
+        }
+
+        /* ── layout ── */
+        .wrap {
+            width: 100%;
+            max-width: 1060px;
+            padding: 48px 24px 80px;
+            position: relative;
+            transition: opacity 0.5s ease;
+        }
+
+        body.result-shown .wrap header,
+        body.result-shown .wrap .panels,
+        body.result-shown .wrap .action {
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        body.result-shown .wrap {
+            transition: opacity 0.5s ease;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            transition: opacity 0.5s ease;
+        }
+        .eyebrow {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 0.35em;
+            color: var(--silver);
+            text-transform: uppercase;
+        }
+        h1 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(42px, 8vw, 76px);
+            letter-spacing: 0.06em;
+            margin: 6px 0 10px;
+            background: linear-gradient(180deg, var(--white) 0%, var(--silver) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            line-height: 0.95;
+        }
+        .subtext {
+            font-size: 14px;
+            color: var(--silver);
+            max-width: 480px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+
+        .status-line {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 12px;
+            letter-spacing: 0.12em;
+            color: var(--steel);
+            text-align: center;
+            margin-top: 18px;
+            text-transform: uppercase;
+            transition: color 0.3s;
+        }
+        .status-line.ready {
+            color: var(--off-white);
+        }
+
+        /* ── panels ── */
+        .panels {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 32px;
+            align-items: start;
+            transition: opacity 0.5s ease;
+        }
+        @media (max-width: 720px) {
+            .panels {
+                grid-template-columns: 1fr;
+            }
+            .ref-item {
+                grid-template-columns: 20px 1fr 72px !important;
+                gap: 6px !important;
+            }
+            .glyph-box,
+            .slot {
+                height: 72px !important;
+                width: 100% !important;
+                min-width: 52px !important;
+            }
+            .ref-caption {
+                font-size: 9px !important;
+                max-width: 72px !important;
+            }
+            .ref-index {
+                font-size: 9px !important;
+                margin-top: 28px !important;
+            }
+            .pool {
+                grid-template-columns: repeat(2, 1fr) !important;
+            }
+            .tile svg {
+                width: 44% !important;
+            }
+        }
+
+        .panel {
+            border: 1px solid var(--line);
+            background: linear-gradient(160deg, var(--near-black), var(--black));
+            padding: 20px 18px;
+            border-radius: 2px;
+        }
+        .panel-title {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--silver);
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .panel-title span:last-child {
+            color: var(--steel);
+        }
+
+        /* ── reference rows (2‑col) ── */
+        .ref-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--line);
+        }
+        .ref-row:last-child {
+            border-bottom: none;
+        }
+
+        .ref-item {
+            display: grid;
+            grid-template-columns: 28px 106px 106px;
+            gap: 10px;
+            align-items: start;
+        }
+
+        .ref-visual {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ref-caption {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--silver);
+            text-align: center;
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            width: 100%;
+        }
+
+        .glyph-box {
+            width: 100%;
+            height: 156px;
+            border: 1px solid var(--line);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--charcoal);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .glyph-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 6px;
+        }
+        .glyph-box svg {
+            width: 40px;
+            height: 40px;
+        }
+        .glyph-box svg * {
+            stroke: var(--off-white);
+        }
+
+        .ref-index {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--steel);
+            text-align: center;
+            letter-spacing: 0.08em;
+            margin-top: 42px;
+        }
+
+        .slot {
+            width: 106px;
+            height: 106px;
+            border: 1px dashed var(--steel);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 2px;
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s;
+            justify-self: end;
+            overflow: hidden;
+            background: var(--black);
+        }
+        .slot:hover {
+            border-color: var(--off-white);
+        }
+        .slot.drag-over {
+            border-color: var(--white);
+            background: var(--charcoal);
+        }
+        .slot.filled {
+            border-style: solid;
+            border-color: var(--off-white);
+            background: var(--charcoal);
+            cursor: grab;
+        }
+        .slot img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 6px;
+        }
+        .slot svg {
+            width: 36px;
+            height: 36px;
+        }
+        .slot svg * {
+            stroke: var(--off-white);
+        }
+
+        /* ── sample pool ── */
+        .pool {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 14px;
+        }
+        .pool.drag-over {
+            outline: 1px dashed var(--steel);
+            outline-offset: 6px;
+        }
+
+        .tile {
+            aspect-ratio: 1;
+            border: 1px solid var(--line);
+            background: var(--charcoal);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 2px;
+            cursor: grab;
+            transition: transform 0.15s, border-color 0.15s, background 0.15s;
+            overflow: hidden;
+        }
+        .tile:hover {
+            transform: translateY(-2px);
+            border-color: var(--silver);
+        }
+        .tile.selected {
+            border-color: var(--white);
+            background: var(--off-white);
+        }
+        .tile.selected svg * {
+            stroke: var(--black);
+        }
+        .tile img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            padding: 6px;
+        }
+        .tile svg {
+            width: 56%;
+            height: 56%;
+        }
+        .tile svg * {
+            stroke: var(--off-white);
+        }
+        .tile.gone {
+            visibility: hidden;
+        }
+        .tile.dragging {
+            opacity: 0.35;
+        }
+
+        .fallback-mark {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--steel);
+            letter-spacing: 0.06em;
+            text-align: center;
+            padding: 4px;
+        }
+
+        /* ── action ── */
+        .action {
+            text-align: center;
+            margin-top: 40px;
+            transition: opacity 0.5s ease;
+        }
+        button#commit {
+            font-family: 'IBM Plex Mono', monospace;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            font-size: 13px;
+            padding: 16px 40px;
+            background: transparent;
+            border: 1px solid var(--steel);
+            color: var(--steel);
+            cursor: not-allowed;
+            border-radius: 2px;
+            transition: all 0.25s;
+        }
+        button#commit.enabled {
+            color: var(--black);
+            background: linear-gradient(180deg, var(--white), var(--silver));
+            border-color: var(--white);
+            cursor: pointer;
+        }
+        button#commit.enabled:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+        }
+        button#commit:focus-visible {
+            outline: 2px solid var(--white);
+            outline-offset: 3px;
+        }
+
+        .note {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--steel);
+            text-align: center;
+            margin-top: 14px;
+            letter-spacing: 0.05em;
+        }
+
+        /* ── overlays ── */
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(8, 8, 10, 0.94);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 50;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease;
+        }
+        .overlay.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .overlay .result-title {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(40px, 10vw, 88px);
+            letter-spacing: 0.05em;
+            text-align: center;
+        }
+        .overlay .result-sub {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 13px;
+            letter-spacing: 0.2em;
+            color: var(--silver);
+            margin-top: 14px;
+            text-transform: uppercase;
+            text-align: center;
+            max-width: 420px;
+            padding: 0 20px;
+        }
+
+        .rings {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+        .ring {
+            position: absolute;
+            border: 1px solid var(--off-white);
+            border-radius: 50%;
+            opacity: 0;
+            animation: ring-out 2.2s ease-out infinite;
+        }
+        .ring:nth-child(2) {
+            animation-delay: 0.5s;
+        }
+        .ring:nth-child(3) {
+            animation-delay: 1s;
+        }
+        @keyframes ring-out {
+            0% {
+                width: 20px;
+                height: 20px;
+                opacity: 0.9;
+            }
+            100% {
+                width: 640px;
+                height: 640px;
+                opacity: 0;
+            }
+        }
+
+        .overlay.win .result-title {
+            background: linear-gradient(180deg, var(--white), var(--silver));
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            animation: pop-in 0.6s cubic-bezier(.2, 1.4, .4, 1);
+        }
+        @keyframes pop-in {
+            0% {
+                transform: scale(0.7);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .overlay.lose .result-title {
+            color: var(--off-white);
+            animation: glitch 0.5s steps(2, end) 3;
+        }
+        @keyframes glitch {
+            0% {
+                transform: translate(0, 0);
+                filter: invert(0);
+            }
+            20% {
+                transform: translate(-4px, 2px);
+                filter: invert(1);
+            }
+            40% {
+                transform: translate(4px, -2px);
+                filter: invert(0);
+            }
+            60% {
+                transform: translate(-3px, -1px);
+                filter: invert(1);
+            }
+            80% {
+                transform: translate(3px, 1px);
+                filter: invert(0);
+            }
+            100% {
+                transform: translate(0, 0);
+                filter: invert(0);
+            }
+        }
+        .overlay.lose {
+            animation: flash-bg 0.5s ease-out;
+        }
+        @keyframes flash-bg {
+            0% {
+                background: rgba(255, 255, 255, 0.85);
+            }
+            100% {
+                background: rgba(8, 8, 10, 0.94);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .ring,
+            .overlay.win .result-title,
+            .overlay.lose .result-title,
+            .overlay.lose {
+                animation: none;
+            }
+        }
+
+        .locked-msg {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            letter-spacing: 0.1em;
+            color: var(--steel);
+            margin-top: 26px;
+            text-align: center;
+        }
+
+        /* ── phone blocker ── */
+        .phone-blocker {
+            position: fixed;
+            inset: 0;
+            background: var(--black);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 60;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+            padding: 32px;
+            text-align: center;
+        }
+        .phone-blocker.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .phone-blocker .icon {
+            font-size: 52px;
+            margin-bottom: 24px;
+            opacity: 0.5;
+        }
+        .phone-blocker h2 {
+            font-family: 'Bebas Neue', sans-serif;
+            font-size: clamp(32px, 8vw, 56px);
+            letter-spacing: 0.04em;
+            margin: 0 0 12px;
+            color: var(--off-white);
+        }
+        .phone-blocker p {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 14px;
+            letter-spacing: 0.1em;
+            color: var(--silver);
+            max-width: 480px;
+            line-height: 1.6;
+            margin: 0;
+        }
+        .phone-blocker .hint {
+            font-family: 'IBM Plex Mono', monospace;
+            font-size: 11px;
+            color: var(--steel);
+            margin-top: 28px;
+            letter-spacing: 0.05em;
+        }
+
+        /* ── when phone-blocker is active, hide the game ── */
+        body.phone-blocked .wrap {
+            opacity: 0;
+            pointer-events: none;
+        }
+        body.phone-blocked .bg-gradient {
+            animation: none !important;
+            background: var(--black) !important;
+        }
+        body.phone-blocked .bg-scan {
+            animation: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="bg-gradient" id="bgGradient"></div>
+    <div class="bg-grain"></div>
+    <div class="bg-scan"></div>
+
+    <div class="wrap">
+        <header>
+            <div class="eyebrow">Quick Matching Test</div>
+            <h1>OWARA'S BIG MATCH RECOGNITION SHOWDOWN</h1>
+            <p class="subtext">Assign a face to each anonymous pose! Then submit to see if you got it right. One submission per person.</p>
+            <div class="status-line" id="statusLine">0 / 8 assigned</div>
+        </header>
+
+        <div class="panels">
+            <section class="panel">
+                <div class="panel-title"><span>Reference</span><span>Fixed · 2‑col</span></div>
+                <div id="refList"></div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-title"><span>Samples</span><span>Unordered</span></div>
+                <div class="pool" id="pool"></div>
+            </section>
+        </div>
+
+        <div class="action">
+            <button id="commit" disabled>That's it!</button>
+            <div class="note">Drag a sample onto a reference slot to place it — or tap the sample, then tap the slot. Drag or tap a filled slot to return it.</div>
+        </div>
+    </div>
+
+    <!-- ── Result overlay ── -->
+    <div class="overlay" id="overlay">
+        <div class="rings" id="rings"></div>
+        <div class="result-title" id="resultTitle"></div>
+        <div class="result-sub" id="resultSub"></div>
+        <div class="locked-msg">This test accepts one submission per visitor. It will not reopen here.</div>
+    </div>
+
+    <!-- ── Phone blocker overlay ── -->
+    <div class="phone-blocker" id="phoneBlocker">
+        <div class="icon">🖥️</div>
+        <h2>DESKTOP ONLY</h2>
+        <p>This experience is designed for desktop browsers. Please open it on a computer to play.</p>
+        <div class="hint">— OWARA LABS —</div>
+    </div>
+
+    <audio id="sfxWin" src="applause.wav" preload="auto"></audio>
+    <audio id="sfxLose" src="No.wav" preload="auto"></audio>
+
+    <script>
+        (function() {
+            const STORAGE_KEY = "matchProtocolResult";
+            const COLOR_KEY = "matchProtocolColor";
+
+            const IMAGE_FILES = ["1.png", "2.png", "3.png", "4.png", "5.png", "6.png", "7.png", "8.png"];
+            const LEFT_DIR = "Images/Left/";
+            const RIGHT_DIR = "Images/Right/";
+
+            function imgMarkup(dir, index, altPrefix) {
+                return `<img src="${dir}${IMAGE_FILES[index]}" alt="${altPrefix} ${index+1}" draggable="false">`;
+            }
+
+            function attachFallback(container, index) {
+                const img = container.querySelector('img');
+                if (!img) return;
+                img.addEventListener('error', () => {
+                    img.replaceWith(Object.assign(document.createElement('div'), {
+                        className: 'fallback-mark',
+                        textContent: 'IMG ' + String(index + 1).padStart(2, '0') + ' MISSING'
+                    }));
+                }, { once: true });
+            }
+
+            function shuffled(arr) {
+                const a = arr.slice();
+                for (let i = a.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [a[i], a[j]] = [a[j], a[i]];
+                }
+                return a;
+            }
+
+            function fileLabel(index) {
+                return IMAGE_FILES[index].replace(/\.[^./\\]+$/, '');
+            }
+
+            function isPhone() {
+                // Check screen width and user agent
+                const ua = navigator.userAgent;
+                const mobileUA = /Mobi|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+                const smallScreen = window.innerWidth < 640;
+                // Also check for touch + small screen as a fallback
+                const touchAndSmall = 'ontouchstart' in window && window.innerWidth < 768;
+                return mobileUA || smallScreen || touchAndSmall;
+            }
+
+            function generateRandomColor() {
+                const hue = Math.floor(Math.random() * 160);
+                const saturation = 70 + Math.floor(Math.random() * 20);
+                const lightness = 15 + Math.floor(Math.random() * 15);
+                return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+            }
+
+            const ids = [0, 1, 2, 3, 4, 5, 6, 7];
+            const leftOrder = shuffled(ids);
+            let rightOrder = shuffled(ids);
+            if (rightOrder.join() === leftOrder.join()) rightOrder = shuffled(ids);
+
+            const refList = document.getElementById('refList');
+            const pool = document.getElementById('pool');
+            const statusLine = document.getElementById('statusLine');
+            const commitBtn = document.getElementById('commit');
+            const overlay = document.getElementById('overlay');
+            const resultTitle = document.getElementById('resultTitle');
+            const resultSub = document.getElementById('resultSub');
+            const ringsHost = document.getElementById('rings');
+            const sfxWin = document.getElementById('sfxWin');
+            const sfxLose = document.getElementById('sfxLose');
+            const bgGradient = document.getElementById('bgGradient');
+            const phoneBlocker = document.getElementById('phoneBlocker');
+
+            let selectedTile = null;
+            let locked = false;
+
+            // ── build reference rows ──
+            function buildRefRows() {
+                const fragment = document.createDocumentFragment();
+                const pairs = [];
+                for (let i = 0; i < leftOrder.length; i += 2) {
+                    pairs.push([leftOrder[i], leftOrder[i + 1]]);
+                }
+
+                pairs.forEach((pair, rowIdx) => {
+                    const row = document.createElement('div');
+                    row.className = 'ref-row';
+
+                    pair.forEach((glyphId, colIdx) => {
+                        const globalIndex = rowIdx * 2 + colIdx;
+                        const item = document.createElement('div');
+                        item.className = 'ref-item';
+
+                        const idxEl = document.createElement('div');
+                        idxEl.className = 'ref-index';
+                        idxEl.textContent = String(globalIndex + 1).padStart(2, '0');
+
+                        const visual = document.createElement('div');
+                        visual.className = 'ref-visual';
+
+                        const box = document.createElement('div');
+                        box.className = 'glyph-box';
+                        box.innerHTML = imgMarkup(LEFT_DIR, glyphId, 'Reference');
+                        attachFallback(box, glyphId);
+
+                        const cap = document.createElement('div');
+                        cap.className = 'ref-caption';
+                        cap.textContent = fileLabel(glyphId);
+
+                        visual.appendChild(box);
+                        visual.appendChild(cap);
+
+                        const slot = document.createElement('div');
+                        slot.className = 'slot';
+                        slot.dataset.correct = glyphId;
+                        slot.dataset.slotIndex = globalIndex;
+
+                        slot.addEventListener('dragover', (e) => {
+                            if (locked || slot.classList.contains('filled')) return;
+                            e.preventDefault();
+                            slot.classList.add('drag-over');
+                        });
+                        slot.addEventListener('dragleave', () => slot.classList.remove('drag-over'));
+                        slot.addEventListener('drop', (e) => {
+                            e.preventDefault();
+                            slot.classList.remove('drag-over');
+                            if (locked || slot.classList.contains('filled')) return;
+                            const sourceSlotIndex = e.dataTransfer.getData('application/slot-index');
+                            const iconId = e.dataTransfer.getData('text/plain');
+                            if (sourceSlotIndex !== '') {
+                                const sourceSlot = refList.querySelector(
+                                    `.slot[data-slot-index="${sourceSlotIndex}"]`);
+                                if (sourceSlot && sourceSlot !== slot) {
+                                    sourceSlot.classList.remove('filled');
+                                    sourceSlot.draggable = false;
+                                    sourceSlot.innerHTML = '';
+                                    delete sourceSlot.dataset.placed;
+                                    slot.classList.add('filled');
+                                    slot.dataset.placed = iconId;
+                                    slot.draggable = true;
+                                    slot.innerHTML = imgMarkup(RIGHT_DIR, Number(iconId), 'Placed sample');
+                                    attachFallback(slot, Number(iconId));
+                                    updateStatus();
+                                }
+                                return;
+                            }
+                            placeInSlot(slot, iconId);
+                        });
+
+                        slot.addEventListener('click', () => {
+                            if (locked) return;
+                            if (slot.classList.contains('filled')) {
+                                returnFromSlot(slot);
+                                return;
+                            }
+                            if (!selectedTile) return;
+                            placeInSlot(slot, selectedTile.dataset.icon);
+                        });
+
+                        slot.addEventListener('dragstart', (e) => {
+                            if (!slot.classList.contains('filled') || locked) return;
+                            e.dataTransfer.setData('application/slot-index', slot.dataset.slotIndex);
+                            e.dataTransfer.setData('text/plain', slot.dataset.placed);
+                            e.dataTransfer.effectAllowed = 'move';
+                        });
+
+                        item.appendChild(idxEl);
+                        item.appendChild(visual);
+                        item.appendChild(slot);
+                        row.appendChild(item);
+                    });
+
+                    fragment.appendChild(row);
+                });
+                refList.appendChild(fragment);
+            }
+
+            // ── build sample pool ──
+            function buildPool() {
+                const fragment = document.createDocumentFragment();
+                rightOrder.forEach((glyphId) => {
+                    const tile = document.createElement('div');
+                    tile.className = 'tile';
+                    tile.draggable = true;
+                    tile.dataset.icon = glyphId;
+                    tile.innerHTML = imgMarkup(RIGHT_DIR, glyphId, 'Sample');
+                    fragment.appendChild(tile);
+                    attachFallback(tile, glyphId);
+
+                    tile.addEventListener('dragstart', (e) => {
+                        if (locked) return;
+                        e.dataTransfer.setData('text/plain', tile.dataset.icon);
+                        e.dataTransfer.effectAllowed = 'move';
+                        tile.classList.add('dragging');
+                    });
+                    tile.addEventListener('dragend', () => tile.classList.remove('dragging'));
+
+                    tile.addEventListener('click', () => {
+                        if (locked) return;
+                        if (tile.classList.contains('gone')) return;
+                        if (selectedTile === tile) {
+                            clearSelection();
+                            return;
+                        }
+                        clearSelection();
+                        selectedTile = tile;
+                        tile.classList.add('selected');
+                    });
+                });
+                pool.appendChild(fragment);
+            }
+
+            pool.addEventListener('dragover', (e) => {
+                if (locked) return;
+                e.preventDefault();
+                pool.classList.add('drag-over');
+            });
+            pool.addEventListener('dragleave', () => pool.classList.remove('drag-over'));
+            pool.addEventListener('drop', (e) => {
+                e.preventDefault();
+                pool.classList.remove('drag-over');
+                if (locked) return;
+                const sourceSlotIndex = e.dataTransfer.getData('application/slot-index');
+                if (sourceSlotIndex === '') return;
+                const slot = refList.querySelector(`.slot[data-slot-index="${sourceSlotIndex}"]`);
+                if (slot) returnFromSlot(slot);
+            });
+
+            function clearSelection() {
+                if (selectedTile) {
+                    selectedTile.classList.remove('selected');
+                    selectedTile = null;
+                }
+            }
+
+            function placeInSlot(slot, iconId) {
+                const sourceTile = pool.querySelector(`.tile[data-icon="${iconId}"]:not(.gone)`);
+                if (!sourceTile) return;
+                slot.classList.add('filled');
+                slot.dataset.placed = iconId;
+                slot.draggable = true;
+                slot.innerHTML = imgMarkup(RIGHT_DIR, Number(iconId), 'Placed sample');
+                attachFallback(slot, Number(iconId));
+                sourceTile.classList.add('gone');
+                clearSelection();
+                updateStatus();
+            }
+
+            function returnFromSlot(slot) {
+                const iconId = slot.dataset.placed;
+                if (!iconId) return;
+                const returned = pool.querySelector(`.tile[data-icon="${iconId}"].gone`);
+                if (returned) returned.classList.remove('gone');
+                slot.classList.remove('filled');
+                slot.draggable = false;
+                slot.innerHTML = '';
+                delete slot.dataset.placed;
+                updateStatus();
+            }
+
+            function updateStatus() {
+                const filled = document.querySelectorAll('.slot.filled').length;
+                statusLine.textContent = filled + ' / 8 assigned';
+                statusLine.classList.toggle('ready', filled === 8);
+                commitBtn.disabled = filled !== 8;
+                commitBtn.classList.toggle('enabled', filled === 8);
+            }
+
+            function evaluate() {
+                const slots = document.querySelectorAll('.slot');
+                let allCorrect = true;
+                slots.forEach(slot => {
+                    if (slot.dataset.placed !== slot.dataset.correct) allCorrect = false;
+                });
+                return allCorrect;
+            }
+
+            function playSound(el) {
+                el.currentTime = 0;
+                el.play().catch(() => {});
+            }
+
+            function spawnRings() {
+                ringsHost.innerHTML = '<div class="ring"></div><div class="ring"></div><div class="ring"></div>';
+            }
+
+            function showResult(win, storedColor) {
+                const color = storedColor || generateRandomColor();
+
+                localStorage.setItem(STORAGE_KEY, win ? 'win' : 'lose');
+                localStorage.setItem(COLOR_KEY, color);
+
+                bgGradient.style.setProperty('--random-bg', color);
+                bgGradient.style.background = color;
+                overlay.style.background = color;
+
+                document.body.classList.add('result-shown');
+
+                overlay.classList.add(win ? 'win' : 'lose');
+                if (win) {
+                    spawnRings();
+                    resultTitle.textContent = 'MATCH CONFIRMED';
+                    resultSub.textContent = 'Every sample aligns with its reference mark.';
+                    playSound(sfxWin);
+                } else {
+                    resultTitle.textContent = 'MISMATCH DETECTED';
+                    resultSub.textContent = 'One or more samples do not correspond to their reference mark.';
+                    playSound(sfxLose);
+                }
+                requestAnimationFrame(() => overlay.classList.add('show'));
+                locked = true;
+            }
+
+            function showPhoneBlocker() {
+                document.body.classList.add('phone-blocked');
+                phoneBlocker.classList.add('show');
+                document.body.classList.remove('result-shown');
+                bgGradient.style.animation = 'none';
+                bgGradient.style.background = 'var(--black)';
+            }
+
+            function init() {
+                const storedResult = localStorage.getItem(STORAGE_KEY);
+                const storedColor = localStorage.getItem(COLOR_KEY);
+
+                if (storedResult === 'win' || storedResult === 'lose') {
+                    buildRefRows();
+                    buildPool();
+                    updateStatus();
+                    showResult(storedResult === 'win', storedColor || undefined);
+                    return;
+                }
+
+                if (isPhone()) {
+                    buildRefRows();
+                    buildPool();
+                    updateStatus();
+                    showPhoneBlocker();
+                    return;
+                }
+
+                buildRefRows();
+                buildPool();
+                updateStatus();
+
+                commitBtn.addEventListener('click', () => {
+                    if (locked || commitBtn.disabled) return;
+                    const win = evaluate();
+                    showResult(win);
+                });
+            }
+
+            window.__match = { leftOrder, rightOrder, isPhone: isPhone() };
+
+            init();
+
+        })();
+    </script>
+</body>
+</html>
